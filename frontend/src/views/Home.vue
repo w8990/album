@@ -5,11 +5,11 @@
         <h1 class="hero-title">文件上传预览系统</h1>
         <p class="hero-subtitle">简单、高效的文件管理解决方案</p>
         <div class="hero-actions">
-          <el-button type="primary" size="large" @click="showUploadDialog = true">
+          <el-button type="primary" size="large" @click="showUploadDialog = true" class="action-button">
             <el-icon><Upload /></el-icon>
             快速上传
           </el-button>
-          <el-button size="large" @click="$router.push('/preview')">
+          <el-button size="large" @click="$router.push('/preview')" class="action-button">
             <el-icon><Picture /></el-icon>
             在线预览
           </el-button>
@@ -21,8 +21,9 @@
     <el-dialog
       v-model="showUploadDialog"
       title="上传文件"
-      width="50%"
+      width="60%"
       :close-on-click-modal="false"
+      class="upload-dialog"
       @closed="handleDialogClosed"
     >
       <div class="upload-dialog-content">
@@ -39,7 +40,7 @@
             <div class="upload-text">
               <p class="primary-text">拖放文件到此处</p>
               <p class="secondary-text">或</p>
-              <el-button type="primary" @click="triggerFileInput">
+              <el-button type="primary" @click="triggerFileInput" class="select-file-button">
                 选择文件
               </el-button>
               <input
@@ -52,7 +53,7 @@
               >
             </div>
             <p class="upload-tip">
-              支持 PNG, JPG, GIF, MP4, WebM 格式
+              支持 PNG, JPG, GIF, MP4, WebM 格式，单个文件最大 100MB
             </p>
           </div>
 
@@ -61,6 +62,7 @@
               :percentage="uploadProgress"
               :status="uploadProgress === 100 ? 'success' : ''"
               :stroke-width="8"
+              class="custom-progress"
             />
             <p class="progress-text">
               {{ uploadProgress === 100 ? '上传完成' : '正在上传...' }}
@@ -86,7 +88,7 @@
                 controls
               ></video>
               <div class="preview-actions">
-                <el-button type="danger" @click="cancelUpload">
+                <el-button type="danger" @click="cancelUpload" class="cancel-button">
                   取消上传
                 </el-button>
               </div>
@@ -104,17 +106,19 @@
             type="primary" 
             @click="toggleBatchMode"
             :class="{ 'is-active': isBatchMode }"
+            class="batch-button"
           >
             {{ isBatchMode ? '退出批量操作' : '批量操作' }}
           </el-button>
           <template v-if="isBatchMode">
-            <el-button type="primary" @click="toggleSelectAll">
+            <el-button type="primary" @click="toggleSelectAll" class="select-all-button">
               {{ isAllSelected ? '取消全选' : '全选' }}
             </el-button>
             <el-button 
               type="danger" 
               @click="confirmBatchDelete"
               :disabled="selectedFiles.length === 0"
+              class="delete-button"
             >
               批量删除 ({{ selectedFiles.length }})
             </el-button>
@@ -122,7 +126,13 @@
         </div>
       </div>
       <div class="files-grid">
-        <div v-for="file in files" :key="file.id" class="file-card" @click="handleFileCardClick(file)">
+        <div 
+          v-for="file in files" 
+          :key="file.id" 
+          class="file-card" 
+          @click="handleFileCardClick(file)"
+          :class="{ 'selected': selectedFiles.includes(file.id) }"
+        >
           <div class="file-preview">
             <div class="select-overlay" v-show="isBatchMode" @click.stop>
               <el-checkbox
@@ -136,6 +146,7 @@
               :src="`${API_BASE_URL}${file.url}`"
               :alt="file.originalname"
               class="preview-image"
+              loading="lazy"
             >
             <div v-else class="video-placeholder">
               <el-icon><VideoPlay /></el-icon>
@@ -145,7 +156,7 @@
             </div>
           </div>
           <div class="file-info">
-            <h4 class="file-name">{{ file.originalname }}</h4>
+            <h4 class="file-name" :title="file.originalname">{{ file.originalname }}</h4>
             <p class="file-meta">{{ formatFileSize(file.size) }}</p>
           </div>
         </div>
@@ -423,95 +434,132 @@ onMounted(() => {
 .home-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
-  min-height: calc(100vh - 120px);
-  display: flex;
-  flex-direction: column;
+  padding: 2rem;
 }
 
 .hero-section {
-  text-align: center;
-  padding: 40px 0;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7eb 100%);
+  background: linear-gradient(135deg, #1890ff 0%, #36cfc9 100%);
   border-radius: 16px;
-  margin-bottom: 40px;
-  flex-shrink: 0;
-}
-
-.hero-content {
-  max-width: 800px;
-  margin: 0 auto;
+  padding: 4rem 2rem;
+  margin-bottom: 3rem;
+  color: white;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .hero-title {
-  font-size: 48px;
-  font-weight: 700;
-  color: #303133;
-  margin-bottom: 16px;
-  background: linear-gradient(120deg, #303133 0%, #606266 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
 }
 
 .hero-subtitle {
-  font-size: 20px;
-  color: #606266;
-  margin-bottom: 32px;
+  font-size: 1.2rem;
+  margin-bottom: 2rem;
+  opacity: 0.9;
 }
 
 .hero-actions {
   display: flex;
-  gap: 16px;
+  gap: 1rem;
   justify-content: center;
 }
 
-.hero-actions .el-button {
-  padding: 12px 24px;
-  font-size: 16px;
+.action-button {
+  padding: 0.8rem 1.5rem;
+  font-size: 1.1rem;
+  transition: transform 0.2s;
 }
 
-.section-title {
-  font-size: 28px;
-  color: #303133;
-  margin-bottom: 24px;
+.action-button:hover {
+  transform: translateY(-2px);
+}
+
+.upload-dialog {
+  border-radius: 12px;
+}
+
+.upload-dialog-content {
+  padding: 1rem;
+}
+
+.upload-area {
+  border: 2px dashed #dcdfe6;
+  border-radius: 8px;
+  padding: 2rem;
   text-align: center;
+  transition: all 0.3s;
+  background: #fafafa;
 }
 
-.recent-files-section {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding-bottom: 20px;
+.upload-area.is-dragging {
+  border-color: #1890ff;
+  background: #e6f7ff;
+}
+
+.upload-icon {
+  font-size: 3rem;
+  color: #1890ff;
+  margin-bottom: 1rem;
+}
+
+.upload-text {
+  margin-bottom: 1rem;
+}
+
+.primary-text {
+  font-size: 1.2rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.secondary-text {
+  color: #666;
+  margin: 0.5rem 0;
+}
+
+.select-file-button {
+  margin: 1rem 0;
+}
+
+.upload-tip {
+  color: #999;
+  font-size: 0.9rem;
+}
+
+.custom-progress {
+  margin: 1rem 0;
 }
 
 .files-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 20px;
-  padding-bottom: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
 }
 
 .file-card {
-  background: #fff;
-  border-radius: 12px;
+  background: white;
+  border-radius: 8px;
   overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
   cursor: pointer;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
 .file-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.file-card.selected {
+  border: 2px solid #1890ff;
 }
 
 .file-preview {
   position: relative;
-  width: 100%;
-  height: 200px;
+  aspect-ratio: 1;
   overflow: hidden;
-  border-radius: 8px;
-  background-color: #f5f7fa;
 }
 
 .preview-image {
@@ -526,218 +574,126 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #e4e7eb;
+  background: #f5f5f5;
 }
 
 .video-placeholder .el-icon {
-  font-size: 48px;
-  color: #909399;
-}
-
-.delete-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  cursor: pointer;
-}
-
-.delete-overlay .el-icon {
-  color: #fff;
-  font-size: 24px;
-}
-
-.file-preview:hover .delete-overlay {
-  opacity: 1;
+  font-size: 2rem;
+  color: #1890ff;
 }
 
 .file-info {
-  padding: 16px;
+  padding: 1rem;
 }
 
 .file-name {
-  font-size: 16px;
-  color: #303133;
-  margin-bottom: 8px;
+  margin: 0;
+  font-size: 0.9rem;
+  color: #333;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .file-meta {
-  font-size: 14px;
-  color: #909399;
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: #999;
 }
 
-@media (max-width: 768px) {
-  .home-container {
-    padding: 0 10px;
-  }
-
-  .hero-section {
-    padding: 30px 0;
-    margin-bottom: 30px;
-  }
-
-  .hero-title {
-    font-size: 32px;
-  }
-  
-  .hero-subtitle {
-    font-size: 16px;
-  }
-  
-  .hero-actions {
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .files-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 15px;
-  }
+.delete-overlay {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  padding: 0.5rem;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.3s;
 }
 
-.upload-dialog-content {
-  padding: 20px;
-}
-
-.upload-area {
-  padding: 40px;
-  border: 2px dashed #dcdfe6;
-  border-radius: 8px;
-  transition: all 0.3s ease;
-}
-
-.upload-area.is-dragging {
-  border-color: #409EFF;
-  background-color: rgba(64, 158, 255, 0.05);
-}
-
-.upload-area.is-uploading {
-  border-style: solid;
-  border-color: #409EFF;
-}
-
-.upload-content {
-  text-align: center;
-}
-
-.upload-icon {
-  font-size: 48px;
-  color: #909399;
-  margin-bottom: 16px;
-}
-
-.upload-text {
-  margin-bottom: 16px;
-}
-
-.primary-text {
-  font-size: 18px;
-  color: #303133;
-  margin-bottom: 8px;
-}
-
-.secondary-text {
-  font-size: 14px;
-  color: #909399;
-  margin-bottom: 16px;
-}
-
-.upload-tip {
-  font-size: 14px;
-  color: #909399;
-}
-
-.upload-progress {
-  padding: 20px;
-}
-
-.progress-text {
-  text-align: center;
-  margin-top: 8px;
-  color: #606266;
-}
-
-.preview-section {
-  margin-top: 20px;
-}
-
-.preview-title {
-  font-size: 18px;
-  color: #303133;
-  margin-bottom: 16px;
-}
-
-.preview-content {
-  display: flex;
-  justify-content: center;
-}
-
-.preview-wrapper {
-  position: relative;
-  max-width: 100%;
-}
-
-.preview-image,
-.preview-video {
-  max-width: 100%;
-  max-height: 400px;
-  border-radius: 8px;
-}
-
-.preview-actions {
-  margin-top: 16px;
-  text-align: center;
-}
-
-.hidden {
-  display: none;
+.file-card:hover .delete-overlay {
+  opacity: 1;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  font-size: 1.5rem;
+  color: #333;
+  margin: 0;
 }
 
 .batch-actions {
   display: flex;
-  gap: 12px;
+  gap: 0.5rem;
 }
 
-.batch-actions .el-button.is-active {
-  background-color: #67c23a;
-  border-color: #67c23a;
+.batch-button {
+  padding: 0.8rem 1.5rem;
+  font-size: 1.1rem;
+  transition: transform 0.2s;
 }
 
-.select-overlay {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 2;
-  background-color: rgba(255, 255, 255, 0.9);
-  padding: 4px;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
+.select-all-button {
+  padding: 0.8rem 1.5rem;
+  font-size: 1.1rem;
+  transition: transform 0.2s;
 }
 
-.file-card:hover .select-overlay {
-  opacity: 1;
+.delete-button {
+  padding: 0.8rem 1.5rem;
+  font-size: 1.1rem;
+  transition: transform 0.2s;
 }
 
-.file-card {
-  position: relative;
-  cursor: pointer;
+.batch-button:hover {
+  transform: translateY(-2px);
+}
+
+.select-all-button:hover {
+  transform: translateY(-2px);
+}
+
+.delete-button:hover {
+  transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+  .home-container {
+    padding: 1rem;
+  }
+
+  .hero-section {
+    padding: 2rem 1rem;
+  }
+
+  .hero-title {
+    font-size: 2rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+  }
+
+  .files-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+
+  .section-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .batch-actions {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style> 
