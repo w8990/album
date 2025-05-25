@@ -1,21 +1,121 @@
 <template>
   <div class="home-container">
-    <div class="hero-section">
-      <div class="hero-content">
-        <h1 class="hero-title">文件上传预览系统</h1>
-        <p class="hero-subtitle">简单、高效的文件管理解决方案</p>
-        <div class="hero-actions">
-          <el-button type="primary" size="large" @click="showUploadDialog = true">
-            <el-icon><Upload /></el-icon>
-            快速上传
-          </el-button>
-          <el-button size="large" @click="$router.push('/preview')">
-            <el-icon><Picture /></el-icon>
-            在线预览
-          </el-button>
-        </div>
+    <!-- 顶部导航栏 -->
+    <nav class="top-nav">
+      <div class="nav-content">
+        <h1 class="logo">文件管理</h1>
+        <el-button type="primary" @click="showUploadDialog = true">
+          <el-icon><Upload /></el-icon>
+          上传文件
+        </el-button>
       </div>
-    </div>
+    </nav>
+
+    <!-- 主要内容区 -->
+    <main class="main-content">
+      <!-- 文件列表区域 -->
+      <section class="files-section" v-if="files.length > 0">
+        <div class="section-header">
+          <div class="header-left">
+            <h3 class="section-title">文件列表</h3>
+            <el-tag type="info" class="file-count">{{ totalFiles }} 个文件</el-tag>
+          </div>
+          <div class="header-right">
+            <el-button-group>
+              <el-button 
+                :type="isBatchMode ? 'success' : 'default'"
+                @click="toggleBatchMode"
+              >
+                {{ isBatchMode ? '退出批量操作' : '批量操作' }}
+              </el-button>
+              <el-button 
+                v-if="isBatchMode"
+                type="primary"
+                @click="toggleSelectCurrentPage"
+              >
+                {{ isCurrentPageSelected ? '取消全选' : '全选当前页' }}
+              </el-button>
+              <el-button 
+                v-if="isBatchMode"
+                type="danger"
+                :disabled="selectedFiles.length === 0"
+                @click="confirmBatchDelete"
+              >
+                删除选中 ({{ selectedFiles.length }})
+              </el-button>
+            </el-button-group>
+          </div>
+        </div>
+
+        <div class="files-grid">
+          <div 
+            v-for="file in currentPageFiles" 
+            :key="file.id" 
+            class="file-card"
+            :class="{ 'is-selected': selectedFiles.includes(file.id) }"
+            @click="handleFileCardClick(file)"
+          >
+            <div class="file-preview">
+              <div class="select-overlay" v-show="isBatchMode" @click.stop>
+                <el-checkbox
+                  v-model="selectedFiles"
+                  :label="file.id"
+                  @change="handleSelectChange"
+                />
+              </div>
+              <div class="preview-content">
+                <img
+                  v-if="file.mimetype.startsWith('image/')"
+                  :src="`${API_BASE_URL}${file.url}`"
+                  :alt="file.originalname"
+                  class="preview-image"
+                >
+                <div v-else class="video-preview">
+                  <el-icon><VideoPlay /></el-icon>
+                </div>
+              </div>
+              <div class="file-actions">
+                <el-button 
+                  type="danger" 
+                  size="small"
+                  @click.stop="deleteFile(file)"
+                >
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+              </div>
+            </div>
+            <div class="file-info">
+              <h4 class="file-name" :title="file.originalname">{{ file.originalname }}</h4>
+              <div class="file-meta">
+                <span class="file-size">{{ formatFileSize(file.size) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分页组件 -->
+        <div class="pagination-container">
+          <el-pagination
+            v-model:current-page="currentPage"
+            v-model:page-size="pageSize"
+            :page-sizes="[12, 24, 36, 48]"
+            :total="totalFiles"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleSizeChange"
+            @current-change="handleCurrentChange"
+          />
+        </div>
+      </section>
+
+      <!-- 空状态 -->
+      <section v-else class="empty-state">
+        <el-empty description="暂无文件">
+          <el-button type="primary" @click="showUploadDialog = true">
+            开始上传
+          </el-button>
+        </el-empty>
+      </section>
+    </main>
 
     <!-- 上传对话框 -->
     <el-dialog
@@ -52,7 +152,7 @@
               >
             </div>
             <p class="upload-tip">
-              支持 PNG, JPG, GIF, MP4, WebM 格式
+              支持 PNG, JPG, GIF, MP4, WebM 格式，单个文件最大 100MB
             </p>
           </div>
 
@@ -67,90 +167,8 @@
             </p>
           </div>
         </div>
-
-        <!-- 预览区域 -->
-        <div v-if="previewUrl" class="preview-section">
-          <h3 class="preview-title">文件预览</h3>
-          <div class="preview-content">
-            <div class="preview-wrapper">
-              <img
-                v-if="isImage"
-                :src="previewUrl"
-                class="preview-image"
-                alt="预览图片"
-              >
-              <video
-                v-else
-                :src="previewUrl"
-                class="preview-video"
-                controls
-              ></video>
-              <div class="preview-actions">
-                <el-button type="danger" @click="cancelUpload">
-                  取消上传
-                </el-button>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </el-dialog>
-
-    <div class="recent-files-section" v-if="files.length > 0">
-      <div class="section-header">
-        <h2 class="section-title">最近上传</h2>
-        <div class="batch-actions">
-          <el-button 
-            type="primary" 
-            @click="toggleBatchMode"
-            :class="{ 'is-active': isBatchMode }"
-          >
-            {{ isBatchMode ? '退出批量操作' : '批量操作' }}
-          </el-button>
-          <template v-if="isBatchMode">
-            <el-button type="primary" @click="toggleSelectAll">
-              {{ isAllSelected ? '取消全选' : '全选' }}
-            </el-button>
-            <el-button 
-              type="danger" 
-              @click="confirmBatchDelete"
-              :disabled="selectedFiles.length === 0"
-            >
-              批量删除 ({{ selectedFiles.length }})
-            </el-button>
-          </template>
-        </div>
-      </div>
-      <div class="files-grid">
-        <div v-for="file in files" :key="file.id" class="file-card" @click="handleFileCardClick(file)">
-          <div class="file-preview">
-            <div class="select-overlay" v-show="isBatchMode" @click.stop>
-              <el-checkbox
-                v-model="selectedFiles"
-                :label="file.id"
-                @change="handleSelectChange"
-              />
-            </div>
-            <img
-              v-if="file.mimetype.startsWith('image/')"
-              :src="`${API_BASE_URL}${file.url}`"
-              :alt="file.originalname"
-              class="preview-image"
-            >
-            <div v-else class="video-placeholder">
-              <el-icon><VideoPlay /></el-icon>
-            </div>
-            <div class="delete-overlay" @click.stop="deleteFile(file)">
-              <el-icon><Delete /></el-icon>
-            </div>
-          </div>
-          <div class="file-info">
-            <h4 class="file-name">{{ file.originalname }}</h4>
-            <p class="file-meta">{{ formatFileSize(file.size) }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -160,8 +178,16 @@ import { useRouter } from 'vue-router'
 import { API_BASE_URL, API_ENDPOINTS } from '../config'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
+interface FileItem {
+  id: number
+  originalname: string
+  mimetype: string
+  size: number
+  url: string
+}
+
 const router = useRouter()
-const files = ref([])
+const files = ref<FileItem[]>([])
 const showUploadDialog = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
@@ -171,6 +197,82 @@ const previewUrl = ref('')
 const isImage = ref(true)
 const selectedFiles = ref<number[]>([])
 const isBatchMode = ref(false)
+
+// 分页相关
+const currentPage = ref(1)
+const pageSize = ref(12)
+const totalFiles = ref(0)
+
+// 计算当前页的文件
+const currentPageFiles = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return files.value.slice(start, end)
+})
+
+// 计算当前页是否全选
+const isCurrentPageSelected = computed(() => {
+  if (currentPageFiles.value.length === 0) return false
+  return currentPageFiles.value.every(file => selectedFiles.value.includes(file.id))
+})
+
+// 切换当前页全选状态
+const toggleSelectCurrentPage = () => {
+  const currentPageIds = currentPageFiles.value.map(file => file.id)
+  
+  if (isCurrentPageSelected.value) {
+    // 取消当前页全选
+    selectedFiles.value = selectedFiles.value.filter(id => !currentPageIds.includes(id))
+  } else {
+    // 全选当前页
+    const newSelected = new Set([...selectedFiles.value, ...currentPageIds])
+    selectedFiles.value = Array.from(newSelected)
+  }
+}
+
+// 处理文件选择变化
+const handleSelectChange = () => {
+  // 如果当前页全选，则自动选中新加载的文件
+  if (isCurrentPageSelected.value) {
+    const currentPageIds = currentPageFiles.value.map(file => file.id)
+    selectedFiles.value = Array.from(new Set([...selectedFiles.value, ...currentPageIds]))
+  }
+}
+
+// 切换批量操作模式
+const toggleBatchMode = () => {
+  isBatchMode.value = !isBatchMode.value
+  if (!isBatchMode.value) {
+    selectedFiles.value = []
+  }
+}
+
+// 处理页码改变
+const handleCurrentChange = (page: number) => {
+  currentPage.value = page
+  // 如果退出批量模式，清空选择
+  if (!isBatchMode.value) {
+    selectedFiles.value = []
+  }
+}
+
+// 处理每页条数改变
+const handleSizeChange = (size: number) => {
+  pageSize.value = size
+  currentPage.value = 1
+  // 如果退出批量模式，清空选择
+  if (!isBatchMode.value) {
+    selectedFiles.value = []
+  }
+}
+
+const imageCount = computed(() => {
+  return files.value.filter(file => file.mimetype.startsWith('image/')).length
+})
+
+const videoCount = computed(() => {
+  return files.value.filter(file => file.mimetype.startsWith('video/')).length
+})
 
 const formatFileSize = (bytes: number) => {
   if (bytes === 0) return '0 B'
@@ -205,8 +307,12 @@ const deleteFile = async (file: any) => {
     }
     
     ElMessage.success('文件已删除')
-    // 从列表中移除已删除的文件
-    files.value = files.value.filter(f => f.id !== file.id)
+    // 重新加载文件列表
+    await loadFiles()
+    // 如果当前页没有文件了，且不是第一页，则跳转到上一页
+    if (currentPageFiles.value.length === 0 && currentPage.value > 1) {
+      currentPage.value--
+    }
   } catch (err) {
     if (err !== 'cancel') {
       console.error('删除文件失败:', err)
@@ -309,8 +415,8 @@ const loadFiles = async () => {
   try {
     const response = await fetch(API_ENDPOINTS.FILES)
     const data = await response.json()
-    console.log('获取到的文件数量:', data.length)
     files.value = data
+    totalFiles.value = data.length
   } catch (error) {
     console.error('加载文件列表失败:', error)
   }
@@ -326,10 +432,6 @@ const handleDialogClosed = () => {
     fileInput.value.value = '' // 清空文件输入框
   }
   selectedFiles.value = [] // 清空选择
-}
-
-const handleSelectChange = () => {
-  console.log('已选择的文件:', selectedFiles.value)
 }
 
 const confirmBatchDelete = async () => {
@@ -370,8 +472,13 @@ const batchDelete = async () => {
       if (failCount > 0) {
         ElMessage.warning(`${failCount} 个文件删除失败`)
       }
-      // 从列表中移除已删除的文件
-      files.value = files.value.filter(f => !selectedFiles.value.includes(f.id))
+      // 重新加载文件列表
+      await loadFiles()
+      // 如果当前页没有文件了，且不是第一页，则跳转到上一页
+      if (currentPageFiles.value.length === 0 && currentPage.value > 1) {
+        currentPage.value--
+      }
+      // 清空选择
       selectedFiles.value = []
     } else {
       ElMessage.error('所有文件删除失败')
@@ -379,25 +486,6 @@ const batchDelete = async () => {
   } catch (error) {
     console.error('批量删除失败:', error)
     ElMessage.error('批量删除失败，请重试')
-  }
-}
-
-const isAllSelected = computed(() => {
-  return files.value.length > 0 && selectedFiles.value.length === files.value.length
-})
-
-const toggleBatchMode = () => {
-  isBatchMode.value = !isBatchMode.value
-  if (!isBatchMode.value) {
-    selectedFiles.value = []
-  }
-}
-
-const toggleSelectAll = () => {
-  if (isAllSelected.value) {
-    selectedFiles.value = []
-  } else {
-    selectedFiles.value = files.value.map(file => file.id)
   }
 }
 
@@ -421,97 +509,103 @@ onMounted(() => {
 
 <style scoped>
 .home-container {
+  min-height: 100vh;
+  background-color: #f5f7fa;
+}
+
+.top-nav {
+  background: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
-  min-height: calc(100vh - 120px);
+  padding: 1rem 2rem;
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.hero-section {
-  text-align: center;
-  padding: 40px 0;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7eb 100%);
-  border-radius: 16px;
-  margin-bottom: 40px;
-  flex-shrink: 0;
-}
-
-.hero-content {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.hero-title {
-  font-size: 48px;
-  font-weight: 700;
+.logo {
+  font-size: 1.5rem;
+  font-weight: 600;
   color: #303133;
-  margin-bottom: 16px;
-  background: linear-gradient(120deg, #303133 0%, #606266 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  margin: 0;
 }
 
-.hero-subtitle {
-  font-size: 20px;
-  color: #606266;
-  margin-bottom: 32px;
+.main-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
 }
 
-.hero-actions {
+.files-section {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.section-header {
   display: flex;
-  gap: 16px;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
 }
 
-.hero-actions .el-button {
-  padding: 12px 24px;
-  font-size: 16px;
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
 .section-title {
-  font-size: 28px;
+  font-size: 1.25rem;
+  font-weight: 600;
   color: #303133;
-  margin-bottom: 24px;
-  text-align: center;
+  margin: 0;
 }
 
-.recent-files-section {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding-bottom: 20px;
+.file-count {
+  font-size: 0.875rem;
 }
 
 .files-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 20px;
-  padding-bottom: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
 }
 
 .file-card {
-  background: #fff;
-  border-radius: 12px;
+  background: white;
+  border-radius: 0.5rem;
   overflow: hidden;
-  cursor: pointer;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  border: 1px solid #ebeef5;
 }
 
 .file-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.file-card.is-selected {
+  border: 2px solid #409EFF;
 }
 
 .file-preview {
   position: relative;
+  aspect-ratio: 16/9;
+  background: #f5f7fa;
+}
+
+.preview-content {
   width: 100%;
-  height: 200px;
-  overflow: hidden;
-  border-radius: 8px;
-  background-color: #f5f7fa;
+  height: 100%;
 }
 
 .preview-image {
@@ -520,7 +614,7 @@ onMounted(() => {
   object-fit: cover;
 }
 
-.video-placeholder {
+.video-preview {
   width: 100%;
   height: 100%;
   display: flex;
@@ -529,90 +623,58 @@ onMounted(() => {
   background: #e4e7eb;
 }
 
-.video-placeholder .el-icon {
-  font-size: 48px;
+.video-preview .el-icon {
+  font-size: 2rem;
   color: #909399;
 }
 
-.delete-overlay {
+.file-actions {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  top: 0.5rem;
+  right: 0.5rem;
   opacity: 0;
   transition: opacity 0.3s ease;
-  cursor: pointer;
 }
 
-.delete-overlay .el-icon {
-  color: #fff;
-  font-size: 24px;
-}
-
-.file-preview:hover .delete-overlay {
+.file-card:hover .file-actions {
   opacity: 1;
 }
 
 .file-info {
-  padding: 16px;
+  padding: 0.75rem;
 }
 
 .file-name {
-  font-size: 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
   color: #303133;
-  margin-bottom: 8px;
+  margin: 0 0 0.25rem 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .file-meta {
-  font-size: 14px;
+  font-size: 0.75rem;
   color: #909399;
 }
 
-@media (max-width: 768px) {
-  .home-container {
-    padding: 0 10px;
-  }
-
-  .hero-section {
-    padding: 30px 0;
-    margin-bottom: 30px;
-  }
-
-  .hero-title {
-    font-size: 32px;
-  }
-  
-  .hero-subtitle {
-    font-size: 16px;
-  }
-  
-  .hero-actions {
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .files-grid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 15px;
-  }
+.empty-state {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 3rem 2rem;
+  text-align: center;
 }
 
 .upload-dialog-content {
-  padding: 20px;
+  padding: 1.5rem;
 }
 
 .upload-area {
-  padding: 40px;
   border: 2px dashed #dcdfe6;
-  border-radius: 8px;
+  border-radius: 0.5rem;
+  padding: 2rem;
+  text-align: center;
   transition: all 0.3s ease;
 }
 
@@ -626,34 +688,30 @@ onMounted(() => {
   border-color: #409EFF;
 }
 
-.upload-content {
-  text-align: center;
-}
-
 .upload-icon {
-  font-size: 48px;
+  font-size: 2rem;
   color: #909399;
-  margin-bottom: 16px;
+  margin-bottom: 1rem;
 }
 
 .upload-text {
-  margin-bottom: 16px;
+  margin-bottom: 1rem;
 }
 
 .primary-text {
-  font-size: 18px;
+  font-size: 1rem;
   color: #303133;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
 }
 
 .secondary-text {
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #909399;
-  margin-bottom: 16px;
+  margin-bottom: 1rem;
 }
 
 .upload-tip {
-  font-size: 14px;
+  font-size: 0.75rem;
   color: #909399;
 }
 
@@ -667,77 +725,38 @@ onMounted(() => {
   color: #606266;
 }
 
-.preview-section {
-  margin-top: 20px;
-}
-
-.preview-title {
-  font-size: 18px;
-  color: #303133;
-  margin-bottom: 16px;
-}
-
-.preview-content {
+.pagination-container {
+  margin-top: 2rem;
   display: flex;
   justify-content: center;
 }
 
-.preview-wrapper {
-  position: relative;
-  max-width: 100%;
-}
+@media (max-width: 768px) {
+  .nav-content {
+    padding: 1rem;
+  }
 
-.preview-image,
-.preview-video {
-  max-width: 100%;
-  max-height: 400px;
-  border-radius: 8px;
-}
+  .main-content {
+    padding: 1rem;
+  }
 
-.preview-actions {
-  margin-top: 16px;
-  text-align: center;
-}
+  .files-section {
+    padding: 1rem;
+  }
 
-.hidden {
-  display: none;
-}
+  .section-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
 
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
+  .header-right {
+    display: flex;
+    justify-content: center;
+  }
 
-.batch-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.batch-actions .el-button.is-active {
-  background-color: #67c23a;
-  border-color: #67c23a;
-}
-
-.select-overlay {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 2;
-  background-color: rgba(255, 255, 255, 0.9);
-  padding: 4px;
-  border-radius: 4px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.file-card:hover .select-overlay {
-  opacity: 1;
-}
-
-.file-card {
-  position: relative;
-  cursor: pointer;
+  .files-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style> 
