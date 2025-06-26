@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import Preview from '../views/Preview.vue'
+import List from '../views/List.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -19,6 +20,14 @@ const router = createRouter({
       path: '/preview/:id',
       name: 'preview-detail',
       component: Preview
+    },
+    {
+      path: '/order/list',
+      name: 'order-list',
+      component: List,
+      meta: {
+        title: '订单列表'
+      }
     }
   ]
 })
@@ -26,7 +35,7 @@ const router = createRouter({
 // 添加路由守卫用于调试
 router.beforeEach((to, from, next) => {
   console.log('路由跳转:', { from: from.path, to: to.path, params: to.params })
-  document.title = `${to.meta.title} - 文件上传预览系统`
+  document.title = `${to.meta.title || '文件上传预览系统'}`
   next()
 })
 
