@@ -16,6 +16,10 @@
               <span class="stat-label">已上传文件</span>
             </div>
             <div class="stat-item">
+              <span class="stat-number">{{ albums.length }}</span>
+              <span class="stat-label">相册数量</span>
+            </div>
+            <div class="stat-item">
               <span class="stat-number">{{ formatFileSize(totalSize) }}</span>
               <span class="stat-label">总存储空间</span>
             </div>
@@ -33,13 +37,97 @@
           </el-button>
           <el-button 
             size="large" 
-            @click="scrollToFiles" 
+            @click="scrollToAlbums" 
             class="action-button browse-btn"
           >
             <el-icon><FolderOpened /></el-icon>
-            浏览文件
+            浏览相册
           </el-button>
         </div>
+      </div>
+    </div>
+
+    <!-- 相册管理区域 -->
+    <div class="albums-section" ref="albumsSection">
+      <div class="section-header">
+        <div class="header-left">
+          <h2 class="section-title">相册管理</h2>
+          <el-tag type="info" size="small">{{ albums.length }} 个相册</el-tag>
+        </div>
+        
+        <div class="header-right">
+          <el-button 
+            type="primary" 
+            @click="showCreateAlbumDialog = true"
+            class="create-album-btn"
+          >
+            <el-icon><Plus /></el-icon>
+            创建相册
+          </el-button>
+        </div>
+      </div>
+
+      <!-- 相册网格 -->
+      <div class="albums-grid" v-if="albums.length > 0">
+        <div 
+          v-for="album in albums" 
+          :key="album.id" 
+          class="album-card"
+          @click="selectAlbum(album)"
+          :class="{ 'active': selectedAlbum?.id === album.id }"
+        >
+          <!-- 相册封面 -->
+          <div class="album-cover">
+            <img
+              v-if="album.cover_url"
+              :src="`${API_BASE_URL}${album.cover_url}`"
+              :alt="album.name"
+              class="cover-image"
+            >
+            <div v-else class="default-cover">
+              <el-icon class="cover-icon"><Picture /></el-icon>
+            </div>
+            
+            <!-- 文件数量标签 -->
+            <div class="file-count-badge">
+              {{ album.file_count }} 个文件
+            </div>
+          </div>
+
+          <!-- 相册信息 -->
+          <div class="album-info">
+            <h3 class="album-name" :title="album.name">{{ album.name }}</h3>
+            <p class="album-description" v-if="album.description">{{ album.description }}</p>
+            <div class="album-meta">
+              <span class="album-size">{{ formatFileSize(album.total_size) }}</span>
+              <span class="album-date">{{ formatDate(album.created_at) }}</span>
+            </div>
+          </div>
+
+          <!-- 相册操作 -->
+          <div class="album-actions">
+            <el-dropdown @command="handleAlbumAction" trigger="click">
+              <el-button type="text" size="small">
+                <el-icon><MoreFilled /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item :command="`edit-${album.id}`">编辑相册</el-dropdown-item>
+                  <el-dropdown-item :command="`delete-${album.id}`" v-if="album.name !== '默认相册'">删除相册</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
+        </div>
+      </div>
+
+      <!-- 空状态 -->
+      <div v-else class="empty-albums">
+        <el-empty description="还没有相册，创建一个开始整理您的文件吧！">
+          <el-button type="primary" @click="showCreateAlbumDialog = true">
+            创建第一个相册
+          </el-button>
+        </el-empty>
       </div>
     </div>
 
@@ -47,8 +135,10 @@
     <div class="files-section" ref="filesSection" v-if="files.length > 0">
       <div class="section-header">
         <div class="header-left">
-          <h2 class="section-title">文件管理</h2>
-          <el-tag type="info" size="small">{{ filteredFiles.length }} 个文件</el-tag>
+          <h2 class="section-title">
+            {{ selectedAlbum ? `${selectedAlbum.name} - 文件` : '全部文件' }}
+          </h2>
+          <el-tag type="info" size="small">{{ files.length }} 个文件</el-tag>
         </div>
         
         <!-- 搜索和筛选 -->
@@ -64,10 +154,19 @@
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-          <el-select v-model="filterType" placeholder="文件类型" class="filter-select" clearable>
+          <el-select v-model="filterType" placeholder="文件类型" class="filter-select" clearable @change="handleTypeFilter">
             <el-option label="全部" value="" />
             <el-option label="图片" value="image" />
             <el-option label="视频" value="video" />
+          </el-select>
+          <el-select v-model="selectedAlbumFilter" placeholder="选择相册" class="album-filter-select" clearable @change="handleAlbumFilter">
+            <el-option label="全部相册" value="" />
+            <el-option 
+              v-for="album in albums" 
+              :key="album.id" 
+              :label="album.name" 
+              :value="album.id" 
+            />
           </el-select>
         </div>
 
@@ -105,6 +204,13 @@
               {{ isAllSelected ? '取消全选' : '全选' }}
             </el-button>
             <el-button 
+              type="success" 
+              @click="showMoveToAlbumDialog = true"
+              size="small"
+            >
+              移动到相册 ({{ selectedFiles.length }})
+            </el-button>
+            <el-button 
               type="danger" 
               @click="confirmBatchDelete"
               size="small"
@@ -120,7 +226,7 @@
         <div v-if="viewMode === 'grid'" class="files-grid">
           <transition-group name="file-card" tag="div" class="grid-container">
             <div 
-              v-for="file in filteredFiles" 
+              v-for="file in files" 
               :key="file.id" 
               class="file-card"
               :class="{ 
@@ -190,7 +296,7 @@
       <transition name="fade">
         <div v-if="viewMode === 'list'" class="files-table">
           <el-table 
-            :data="filteredFiles" 
+            :data="files" 
             class="modern-table"
             @selection-change="handleSelectionChange"
             :row-class-name="getRowClassName"
@@ -326,6 +432,26 @@
                 </el-button>
               </div>
             </div>
+            
+            <!-- 相册选择 -->
+            <div class="album-selection">
+              <label class="album-label">选择相册：</label>
+              <el-select 
+                v-model="selectedAlbumForUpload" 
+                placeholder="选择要上传到的相册" 
+                class="album-select"
+                clearable
+              >
+                <el-option label="默认相册" value="" />
+                <el-option 
+                  v-for="album in albums.filter(a => a.name !== '默认相册')" 
+                  :key="album.id" 
+                  :label="album.name" 
+                  :value="album.id" 
+                />
+              </el-select>
+            </div>
+            
             <div class="queue-list">
               <div v-for="(file, index) in uploadQueue" :key="index" class="queue-item">
                 <div class="file-preview">
@@ -367,6 +493,108 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 创建相册对话框 -->
+    <el-dialog
+      v-model="showCreateAlbumDialog"
+      title="创建相册"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form label-width="80px">
+        <el-form-item label="相册名称" required>
+          <el-input
+            v-model="newAlbumName"
+            placeholder="请输入相册名称"
+            maxlength="50"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="相册描述">
+          <el-input
+            v-model="newAlbumDescription"
+            type="textarea"
+            placeholder="请输入相册描述（可选）"
+            maxlength="200"
+            show-word-limit
+            :rows="3"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showCreateAlbumDialog = false">取消</el-button>
+          <el-button type="primary" @click="createAlbum">创建</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑相册对话框 -->
+    <el-dialog
+      v-model="showEditAlbumDialog"
+      title="编辑相册"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form label-width="80px">
+        <el-form-item label="相册名称" required>
+          <el-input
+            v-model="newAlbumName"
+            placeholder="请输入相册名称"
+            maxlength="50"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="相册描述">
+          <el-input
+            v-model="newAlbumDescription"
+            type="textarea"
+            placeholder="请输入相册描述（可选）"
+            maxlength="200"
+            show-word-limit
+            :rows="3"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showEditAlbumDialog = false">取消</el-button>
+          <el-button type="primary" @click="updateAlbum">保存</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 移动文件到相册对话框 -->
+    <el-dialog
+      v-model="showMoveToAlbumDialog"
+      title="移动文件到相册"
+      width="400px"
+      :close-on-click-modal="false"
+    >
+      <div class="move-dialog-content">
+        <p>将选中的 {{ selectedFiles.length }} 个文件移动到：</p>
+        <el-select 
+          v-model="selectedAlbumForMove" 
+          placeholder="选择目标相册" 
+          class="album-move-select"
+          clearable
+        >
+          <el-option label="移出相册（无分类）" value="" />
+          <el-option 
+            v-for="album in albums" 
+            :key="album.id" 
+            :label="album.name" 
+            :value="album.id" 
+          />
+        </el-select>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showMoveToAlbumDialog = false">取消</el-button>
+          <el-button type="primary" @click="moveFilesToAlbum">移动</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -377,12 +605,19 @@ import { API_BASE_URL, API_ENDPOINTS } from '../config'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Upload, Picture, VideoPlay, Delete, FolderOpened, Search, Grid, List,
-  Operation, View, Download, Document, Upload as CloudUpload, Close
+  Operation, View, Download, Document, Upload as CloudUpload, Close, Plus, MoreFilled
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const files = ref<any[]>([])
+const albums = ref<any[]>([])
 const showUploadDialog = ref(false)
+const showCreateAlbumDialog = ref(false)
+const showEditAlbumDialog = ref(false)
+const showMoveToAlbumDialog = ref(false)
+const editingAlbum = ref<any | null>(null)
+const newAlbumName = ref('')
+const newAlbumDescription = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const isDragging = ref(false)
 const uploading = ref(false)
@@ -398,35 +633,20 @@ const uploadQueue = ref<any[]>([])
 const currentUploadIndex = ref(0)
 const currentFileName = ref('')
 const filesSection = ref<HTMLElement | null>(null)
+const albumsSection = ref<HTMLElement | null>(null)
+const selectedAlbum = ref<any | null>(null)
+const selectedAlbumFilter = ref<number | null>(null)
+const selectedAlbumForMove = ref('')
+const selectedAlbumForUpload = ref('')
 
 // 计算属性
 const totalSize = computed(() => {
   return files.value.reduce((total, file) => total + file.size, 0)
 })
 
-const filteredFiles = computed(() => {
-  let result = files.value
-
-  // 按搜索查询过滤
-  if (searchQuery.value) {
-    result = result.filter(file => 
-      file.originalname.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
-  }
-
-  // 按文件类型过滤
-  if (filterType.value) {
-    result = result.filter(file => 
-      file.mimetype.startsWith(filterType.value)
-    )
-  }
-
-  return result
-})
-
 const isAllSelected = computed(() => {
-  return filteredFiles.value.length > 0 && 
-         selectedFiles.value.length === filteredFiles.value.length
+  return files.value.length > 0 && 
+         selectedFiles.value.length === files.value.length
 })
 
 // 工具函数
@@ -460,8 +680,12 @@ const getFileExtension = (fileName: string) => {
 }
 
 // 事件处理函数
-const handleSearch = () => {
-  // 搜索逻辑已在computed中实现
+const handleSearch = async () => {
+  await loadFiles({
+    search: searchQuery.value || undefined,
+    type: filterType.value || undefined,
+    albumId: getSelectedAlbumId()
+  });
 }
 
 const handleImageError = (e: Event) => {
@@ -485,6 +709,210 @@ const scrollToFiles = () => {
   }
 }
 
+const scrollToAlbums = () => {
+  if (albumsSection.value) {
+    albumsSection.value.scrollIntoView({ behavior: 'smooth' })
+  }
+}
+
+// 相册相关函数
+const selectAlbum = async (album: any) => {
+  const wasSelected = selectedAlbum.value?.id === album.id;
+  selectedAlbum.value = wasSelected ? null : album;
+  selectedAlbumFilter.value = null;
+  
+  // 根据选择的相册加载文件
+  if (selectedAlbum.value) {
+    const albumId = selectedAlbum.value.name === '默认相册' ? 'default' : selectedAlbum.value.id;
+    await loadFiles({ albumId });
+  } else {
+    await loadFiles(); // 显示所有文件
+  }
+}
+
+const handleAlbumAction = (command: string) => {
+  const [action, albumId] = command.split('-')
+  const album = albums.value.find(a => a.id === parseInt(albumId))
+  
+  if (action === 'edit') {
+    editingAlbum.value = album
+    newAlbumName.value = album.name
+    newAlbumDescription.value = album.description || ''
+    showEditAlbumDialog.value = true
+  } else if (action === 'delete') {
+    confirmDeleteAlbum(album)
+  }
+}
+
+const createAlbum = async () => {
+  try {
+    if (!newAlbumName.value.trim()) {
+      ElMessage.error('请输入相册名称')
+      return
+    }
+
+    const response = await fetch(API_ENDPOINTS.ALBUMS, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: newAlbumName.value.trim(),
+        description: newAlbumDescription.value.trim() || undefined
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('创建相册失败')
+    }
+
+    const result = await response.json()
+    ElMessage.success('相册创建成功')
+    
+    // 重新加载相册列表
+    await loadAlbums()
+    
+    // 重置表单和选择状态
+    newAlbumName.value = ''
+    newAlbumDescription.value = ''
+    showCreateAlbumDialog.value = false
+    
+    // 确保清除相册选择状态，避免筛选问题
+    selectedAlbum.value = null
+    selectedAlbumFilter.value = null
+  } catch (error) {
+    console.error('创建相册失败:', error)
+    ElMessage.error('创建相册失败，请重试')
+  }
+}
+
+const updateAlbum = async () => {
+  try {
+    if (!editingAlbum.value || !newAlbumName.value.trim()) {
+      ElMessage.error('请输入相册名称')
+      return
+    }
+
+    const response = await fetch(API_ENDPOINTS.ALBUM(editingAlbum.value.id), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: newAlbumName.value.trim(),
+        description: newAlbumDescription.value.trim() || undefined
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('更新相册失败')
+    }
+
+    ElMessage.success('相册更新成功')
+    
+    // 重新加载相册列表
+    await loadAlbums()
+    
+    // 重置表单
+    editingAlbum.value = null
+    newAlbumName.value = ''
+    newAlbumDescription.value = ''
+    showEditAlbumDialog.value = false
+  } catch (error) {
+    console.error('更新相册失败:', error)
+    ElMessage.error('更新相册失败，请重试')
+  }
+}
+
+const confirmDeleteAlbum = async (album: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除相册"${album.name}"吗？其中的文件将移动到默认相册。`,
+      '警告',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    
+    await deleteAlbum(album)
+  } catch (err) {
+    if (err !== 'cancel') {
+      console.error('删除相册失败:', err)
+      ElMessage.error('删除相册失败，请重试')
+    }
+  }
+}
+
+const deleteAlbum = async (album: any) => {
+  try {
+    const response = await fetch(API_ENDPOINTS.ALBUM(album.id), {
+      method: 'DELETE'
+    })
+
+    if (!response.ok) {
+      throw new Error('删除相册失败')
+    }
+
+    ElMessage.success('相册删除成功')
+    
+    // 如果删除的是当前选中的相册，清除选择
+    if (selectedAlbum.value?.id === album.id) {
+      selectedAlbum.value = null
+    }
+    
+    // 重新加载相册列表和文件列表
+    await loadAlbums()
+    await loadFiles()
+  } catch (error) {
+    console.error('删除相册失败:', error)
+    ElMessage.error('删除相册失败，请重试')
+  }
+}
+
+const moveFilesToAlbum = async () => {
+  try {
+    if (selectedFiles.value.length === 0) {
+      ElMessage.error('请选择要移动的文件')
+      return
+    }
+
+    const albumId = selectedAlbumForMove.value === '' ? null : parseInt(selectedAlbumForMove.value)
+
+    const response = await fetch(API_ENDPOINTS.BATCH_MOVE_FILES_TO_ALBUM, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        file_ids: selectedFiles.value,
+        album_id: albumId
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('移动文件失败')
+    }
+
+    const result = await response.json()
+    ElMessage.success(result.message)
+    
+    // 重新加载数据
+    await loadFiles()
+    await loadAlbums()
+    
+    // 重置状态
+    selectedFiles.value = []
+    selectedAlbumForMove.value = ''
+    showMoveToAlbumDialog.value = false
+    isBatchMode.value = false
+  } catch (error) {
+    console.error('移动文件失败:', error)
+    ElMessage.error('移动文件失败，请重试')
+  }
+}
+
 const toggleBatchMode = () => {
   isBatchMode.value = !isBatchMode.value
   if (!isBatchMode.value) {
@@ -496,7 +924,7 @@ const toggleSelectAll = () => {
   if (isAllSelected.value) {
     selectedFiles.value = []
   } else {
-    selectedFiles.value = filteredFiles.value.map(file => file.id)
+    selectedFiles.value = files.value.map(file => file.id)
   }
 }
 
@@ -692,6 +1120,11 @@ const startUpload = async () => {
     const formData = new FormData()
     formData.append('files', file)
     
+    // 添加相册ID到表单数据
+    if (selectedAlbumForUpload.value) {
+      formData.append('album_id', selectedAlbumForUpload.value.toString())
+    }
+    
     try {
       const response = await fetch(API_ENDPOINTS.UPLOAD, {
         method: 'POST',
@@ -722,10 +1155,11 @@ const startUpload = async () => {
   }
   
   // 完成后的处理
-  setTimeout(() => {
+  setTimeout(async () => {
     uploading.value = false
     uploadProgress.value = 0
     uploadQueue.value = []
+    selectedAlbumForUpload.value = ''
     showUploadDialog.value = false
     
     if (successCount > 0) {
@@ -733,6 +1167,8 @@ const startUpload = async () => {
       if (failCount > 0) {
         ElMessage.warning(`${failCount} 个文件上传失败`)
       }
+      // 重新加载相册数据以更新文件计数
+      await loadAlbums()
     } else {
       ElMessage.error('所有文件上传失败')
     }
@@ -761,10 +1197,47 @@ const handleDialogClosed = () => {
 }
 
 // 加载文件列表
-const loadFiles = async () => {
+const loadFiles = async (params?: {
+  albumId?: number | 'default' | null;
+  search?: string;
+  type?: string;
+  page?: number;
+  limit?: number;
+}) => {
   try {
-    const response = await fetch(API_ENDPOINTS.FILES)
-    const data = await response.json()
+    const queryParams = new URLSearchParams();
+    
+    // 添加查询参数
+    if (params?.albumId !== undefined) {
+      if (params.albumId === 'default') {
+        queryParams.append('album_id', 'default');
+      } else if (params.albumId === null) {
+        queryParams.append('album_id', '');
+      } else {
+        queryParams.append('album_id', params.albumId.toString());
+      }
+    }
+    
+    if (params?.search) {
+      queryParams.append('search', params.search);
+    }
+    
+    if (params?.type) {
+      queryParams.append('type', params.type);
+    }
+    
+    if (params?.page) {
+      queryParams.append('page', params.page.toString());
+    }
+    
+    if (params?.limit) {
+      queryParams.append('limit', params.limit.toString());
+    }
+    
+    const url = `${API_ENDPOINTS.FILES}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    
     // 处理分页数据结构
     if (data.data && Array.isArray(data.data)) {
       files.value = data.data
@@ -779,9 +1252,67 @@ const loadFiles = async () => {
   }
 }
 
-// 页面加载时获取文件列表
+// 加载相册列表
+const loadAlbums = async () => {
+  try {
+    const response = await fetch(API_ENDPOINTS.ALBUMS)
+    const data = await response.json()
+    if (Array.isArray(data)) {
+      albums.value = data
+    } else {
+      albums.value = []
+    }
+  } catch (error) {
+    console.error('加载相册列表失败:', error)
+    ElMessage.error('加载相册列表失败')
+  }
+}
+
+// 获取当前选中的相册ID
+const getSelectedAlbumId = () => {
+  if (selectedAlbum.value) {
+    return selectedAlbum.value.name === '默认相册' ? 'default' : selectedAlbum.value.id;
+  }
+  return undefined;
+}
+
+// 获取筛选器选中的相册ID
+const getSelectedAlbumFilterId = (): number | 'default' | null => {
+  if (selectedAlbumFilter.value !== null) {
+    const album = albums.value.find(a => a.id === selectedAlbumFilter.value);
+    if (album?.name === '默认相册') {
+      return 'default';
+    }
+    return selectedAlbumFilter.value;
+  }
+  return null; // 显示所有文件
+}
+
+// 处理类型筛选变化
+const handleTypeFilter = async () => {
+  await loadFiles({
+    search: searchQuery.value || undefined,
+    type: filterType.value || undefined,
+    albumId: getSelectedAlbumId()
+  });
+}
+
+// 处理相册筛选器变化
+const handleAlbumFilter = async () => {
+  // 清除相册卡片选择
+  selectedAlbum.value = null;
+  
+  await loadFiles({
+    search: searchQuery.value || undefined,
+    type: filterType.value || undefined,
+    albumId: getSelectedAlbumFilterId()
+  });
+}
+
+// 页面加载时获取数据
 onMounted(() => {
   loadFiles()
+  loadAlbums()
 })
 </script>
 
@@ -921,58 +1452,192 @@ onMounted(() => {
   z-index: 2;
 }
 
-.section-header {
+/* 相册管理区域 */
+.albums-section {
+  background: white;
+  margin: -4rem 2rem 2rem;
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 2;
+}
+
+.albums-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.album-card {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+}
+
+.album-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.album-card.active {
+  border: 2px solid #667eea;
+  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.2);
+}
+
+.album-cover {
+  height: 200px;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+}
+
+.cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.album-card:hover .cover-image {
+  transform: scale(1.05);
+}
+
+.default-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.cover-icon {
+  font-size: 4rem;
+  color: white;
+  opacity: 0.8;
+}
+
+.file-count-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.album-info {
+  padding: 1.5rem;
+}
+
+.album-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0 0 0.5rem 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.album-description {
+  color: #718096;
+  font-size: 0.9rem;
+  margin: 0 0 1rem 0;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.album-meta {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  flex-wrap: wrap;
-  gap: 1rem;
+  font-size: 0.8rem;
+  color: #a0aec0;
 }
 
-.header-left {
+.album-size {
+  font-weight: 600;
+}
+
+.album-actions {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.album-card:hover .album-actions {
+  opacity: 1;
+}
+
+.empty-albums {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.create-album-btn {
+  border-radius: 50px;
+  padding: 0.6rem 1.5rem;
+}
+
+/* 相册选择器样式 */
+.album-selection {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   gap: 1rem;
 }
 
-.section-title {
-  font-size: 1.8rem;
+.album-label {
   font-weight: 600;
   color: #2d3748;
-  margin: 0;
+  white-space: nowrap;
 }
 
-.header-center {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
+.album-select {
   flex: 1;
-  justify-content: center;
+  max-width: 300px;
 }
 
-.search-input {
-  width: 280px;
+.album-filter-select {
+  min-width: 150px;
 }
 
-.filter-select {
-  width: 150px;
+/* 移动对话框样式 */
+.move-dialog-content {
+  padding: 1rem 0;
 }
 
-.header-right {
+.move-dialog-content p {
+  margin-bottom: 1rem;
+  color: #2d3748;
+  font-weight: 500;
+}
+
+.album-move-select {
+  width: 100%;
+}
+
+.dialog-footer {
   display: flex;
-  align-items: center;
+  justify-content: flex-end;
   gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.view-toggle {
-  margin-right: 1rem;
-}
-
-.batch-button {
-  border-radius: 8px;
-  transition: all 0.3s ease;
 }
 
 /* 文件网格视图 */
@@ -1583,5 +2248,59 @@ onMounted(() => {
 
 .queue-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.section-title {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+  justify-content: center;
+}
+
+.search-input {
+  width: 280px;
+}
+
+.filter-select {
+  width: 150px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.view-toggle {
+  margin-right: 1rem;
+}
+
+.batch-button {
+  border-radius: 8px;
+  transition: all 0.3s ease;
 }
 </style> 

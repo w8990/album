@@ -6,5 +6,11 @@ export const API_ENDPOINTS = {
   UPLOAD: `${API_BASE_URL}/api/upload`,
   FILES: `${API_BASE_URL}/api/files`,
   FILE: (id: number) => `${API_BASE_URL}/api/files/${id}`,
+  // 相册相关端点
+  ALBUMS: `${API_BASE_URL}/api/albums`,
+  ALBUM: (id: number) => `${API_BASE_URL}/api/albums/${id}`,
+  ALBUM_FILES: (id: number) => `${API_BASE_URL}/api/albums/${id}/files`,
+  MOVE_FILE_TO_ALBUM: (id: number) => `${API_BASE_URL}/api/files/${id}/album`,
+  BATCH_MOVE_FILES_TO_ALBUM: `${API_BASE_URL}/api/files/batch/album`,
   // 注意：uploads端点不需要在这里定义，因为我们直接使用后端返回的url
 }; 

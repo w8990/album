@@ -3,7 +3,23 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { initDB, insertFileInfo, getFileList, deleteFile, getFileInfo, searchFiles, getFileStats } from './db';
+import { 
+  initDB, 
+  insertFileInfo, 
+  getFileList, 
+  deleteFile, 
+  getFileInfo, 
+  searchFiles, 
+  getFileStats,
+  createAlbum,
+  getAlbums,
+  getAlbumInfo,
+  getAlbumFiles,
+  updateAlbum,
+  deleteAlbum,
+  moveFileToAlbum,
+  moveFilesToAlbum
+} from './db';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -106,6 +122,7 @@ app.get('/api/stats', async (req, res) => {
 app.post('/api/upload', upload.array('files', 10), async (req, res) => {
   try {
     const files = req.files as Express.Multer.File[];
+    const albumId = req.body.album_id ? parseInt(req.body.album_id) : undefined;
     
     if (!files || files.length === 0) {
       return res.status(400).json({ 
@@ -124,7 +141,8 @@ app.post('/api/upload', upload.array('files', 10), async (req, res) => {
           originalname: file.originalname,
           mimetype: file.mimetype,
           size: file.size,
-          url: `/uploads/${file.filename}`
+          url: `/uploads/${file.filename}`,
+          album_id: albumId
         };
 
         // 保存文件信息到数据库
@@ -197,12 +215,15 @@ app.post('/api/upload-single', upload.single('file'), async (req, res) => {
       });
     }
 
+    const albumId = req.body.album_id ? parseInt(req.body.album_id) : undefined;
+
     const fileInfo = {
       filename: req.file.filename,
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
-      url: `/uploads/${req.file.filename}`
+      url: `/uploads/${req.file.filename}`,
+      album_id: albumId
     };
 
     const result = await insertFileInfo(fileInfo);
@@ -240,24 +261,42 @@ app.get('/api/files', async (req, res) => {
     const type = req.query.type as string; // 'image' 或 'video'
     const sortBy = req.query.sortBy as string || 'created_at';
     const sortOrder = req.query.sortOrder as string || 'DESC';
+    const albumIdParam = req.query.album_id as string;
+
+    // 处理相册ID参数
+    let albumId: number | 'default' | null | undefined = undefined;
+    if (albumIdParam !== undefined) {
+      if (albumIdParam === '' || albumIdParam === 'null') {
+        albumId = null; // 显示所有文件
+      } else if (albumIdParam === 'default') {
+        albumId = 'default'; // 默认相册（album_id 为 NULL）
+      } else {
+        const parsedAlbumId = parseInt(albumIdParam);
+        if (!isNaN(parsedAlbumId)) {
+          albumId = parsedAlbumId; // 指定相册ID
+        }
+      }
+    }
 
     let files;
     
-    if (search || type) {
+    if (search || type || albumId !== undefined) {
       files = await searchFiles({
         search,
         type,
         page,
         limit,
         sortBy,
-        sortOrder
+        sortOrder,
+        albumId
       });
     } else {
       files = await getFileList({
         page,
         limit,
         sortBy,
-        sortOrder
+        sortOrder,
+        albumId
       });
     }
 
@@ -466,6 +505,285 @@ app.post('/api/admin/cleanup', async (req, res) => {
     res.status(500).json({ 
       error: '清理失败',
       code: 'CLEANUP_ERROR'
+    });
+  }
+});
+
+// ========== 相册相关接口 ==========
+
+// 创建相册
+app.post('/api/albums', async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    
+    if (!name || name.trim() === '') {
+      return res.status(400).json({ 
+        error: '相册名称不能为空',
+        code: 'INVALID_NAME'
+      });
+    }
+
+    const result = await createAlbum({ name: name.trim(), description });
+    const id = (result as any).insertId;
+
+    res.json({
+      id,
+      name: name.trim(),
+      description,
+      created_at: new Date().toISOString(),
+      message: '相册创建成功'
+    });
+  } catch (error) {
+    console.error('创建相册失败:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : '创建相册失败',
+      code: 'CREATE_ALBUM_ERROR'
+    });
+  }
+});
+
+// 获取所有相册
+app.get('/api/albums', async (req, res) => {
+  try {
+    const albums = await getAlbums();
+    res.json(albums);
+  } catch (error) {
+    console.error('获取相册列表失败:', error);
+    res.status(500).json({ 
+      error: '获取相册列表失败',
+      code: 'GET_ALBUMS_ERROR'
+    });
+  }
+});
+
+// 获取单个相册信息
+app.get('/api/albums/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id) || id <= 0) {
+      return res.status(400).json({ 
+        error: '无效的相册ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const album = await getAlbumInfo(id);
+    if (!album) {
+      return res.status(404).json({ 
+        error: '相册不存在',
+        code: 'ALBUM_NOT_FOUND'
+      });
+    }
+
+    res.json(album);
+  } catch (error) {
+    console.error('获取相册信息失败:', error);
+    res.status(500).json({ 
+      error: '获取相册信息失败',
+      code: 'GET_ALBUM_ERROR'
+    });
+  }
+});
+
+// 获取相册中的文件
+app.get('/api/albums/:id/files', async (req, res) => {
+  try {
+    const idParam = req.params.id;
+    let albumId: number | 'default';
+    
+    if (idParam === 'default') {
+      albumId = 'default';
+    } else {
+      const parsedId = parseInt(idParam);
+      if (isNaN(parsedId) || parsedId <= 0) {
+        return res.status(400).json({ 
+          error: '无效的相册ID',
+          code: 'INVALID_ID'
+        });
+      }
+      albumId = parsedId;
+    }
+
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const sortBy = req.query.sortBy as string || 'created_at';
+    const sortOrder = req.query.sortOrder as string || 'DESC';
+
+    const result = await getAlbumFiles(albumId, { page, limit, sortBy, sortOrder });
+    res.json(result);
+  } catch (error) {
+    console.error('获取相册文件失败:', error);
+    res.status(500).json({ 
+      error: '获取相册文件失败',
+      code: 'GET_ALBUM_FILES_ERROR'
+    });
+  }
+});
+
+// 更新相册信息
+app.put('/api/albums/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id) || id <= 0) {
+      return res.status(400).json({ 
+        error: '无效的相册ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const { name, description, cover_image_id } = req.body;
+    
+    if (name !== undefined && (!name || name.trim() === '')) {
+      return res.status(400).json({ 
+        error: '相册名称不能为空',
+        code: 'INVALID_NAME'
+      });
+    }
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (description !== undefined) updateData.description = description;
+    if (cover_image_id !== undefined) updateData.cover_image_id = cover_image_id;
+
+    const result = await updateAlbum(id, updateData);
+    
+    if (!result) {
+      return res.status(404).json({ 
+        error: '相册不存在或无更新内容',
+        code: 'ALBUM_NOT_FOUND_OR_NO_CHANGES'
+      });
+    }
+
+    res.json({ 
+      message: '相册更新成功',
+      id
+    });
+  } catch (error) {
+    console.error('更新相册失败:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : '更新相册失败',
+      code: 'UPDATE_ALBUM_ERROR'
+    });
+  }
+});
+
+// 删除相册
+app.delete('/api/albums/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id) || id <= 0) {
+      return res.status(400).json({ 
+        error: '无效的相册ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const result = await deleteAlbum(id);
+    
+    if (!result) {
+      return res.status(404).json({ 
+        error: '相册不存在',
+        code: 'ALBUM_NOT_FOUND'
+      });
+    }
+
+    res.json({ 
+      message: '相册删除成功，其中的文件已移动到默认相册',
+      id
+    });
+  } catch (error) {
+    console.error('删除相册失败:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : '删除相册失败',
+      code: 'DELETE_ALBUM_ERROR'
+    });
+  }
+});
+
+// 移动文件到相册
+app.put('/api/files/:id/album', async (req, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    if (isNaN(fileId) || fileId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的文件ID',
+        code: 'INVALID_FILE_ID'
+      });
+    }
+
+    const { album_id } = req.body;
+    const albumId = album_id === null ? null : parseInt(album_id);
+
+    if (albumId !== null && (isNaN(albumId) || albumId <= 0)) {
+      return res.status(400).json({ 
+        error: '无效的相册ID',
+        code: 'INVALID_ALBUM_ID'
+      });
+    }
+
+    const result = await moveFileToAlbum(fileId, albumId);
+    
+    if (!result) {
+      return res.status(404).json({ 
+        error: '文件不存在',
+        code: 'FILE_NOT_FOUND'
+      });
+    }
+
+    res.json({ 
+      message: albumId ? '文件已移动到指定相册' : '文件已移出相册',
+      file_id: fileId,
+      album_id: albumId
+    });
+  } catch (error) {
+    console.error('移动文件到相册失败:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : '移动文件失败',
+      code: 'MOVE_FILE_ERROR'
+    });
+  }
+});
+
+// 批量移动文件到相册
+app.put('/api/files/batch/album', async (req, res) => {
+  try {
+    const { file_ids, album_id } = req.body;
+    
+    if (!Array.isArray(file_ids) || file_ids.length === 0) {
+      return res.status(400).json({ 
+        error: '请提供要移动的文件ID列表',
+        code: 'INVALID_FILE_IDS'
+      });
+    }
+
+    const albumId = album_id === null ? null : parseInt(album_id);
+
+    if (albumId !== null && (isNaN(albumId) || albumId <= 0)) {
+      return res.status(400).json({ 
+        error: '无效的相册ID',
+        code: 'INVALID_ALBUM_ID'
+      });
+    }
+
+    const result = await moveFilesToAlbum(file_ids, albumId);
+    
+    if (!result) {
+      return res.status(400).json({ 
+        error: '没有文件被移动',
+        code: 'NO_FILES_MOVED'
+      });
+    }
+
+    res.json({ 
+      message: albumId ? `成功将 ${file_ids.length} 个文件移动到指定相册` : `成功将 ${file_ids.length} 个文件移出相册`,
+      file_count: file_ids.length,
+      album_id: albumId
+    });
+  } catch (error) {
+    console.error('批量移动文件到相册失败:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : '批量移动文件失败',
+      code: 'BATCH_MOVE_FILES_ERROR'
     });
   }
 });
