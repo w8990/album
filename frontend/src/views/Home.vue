@@ -442,12 +442,11 @@
                 class="album-select"
                 clearable
               >
-                <el-option label="默认相册" value="" />
                 <el-option 
-                  v-for="album in albums.filter(a => a.name !== '默认相册')" 
+                  v-for="album in albums" 
                   :key="album.id" 
                   :label="album.name" 
-                  :value="album.id" 
+                  :value="album.name === '默认相册' ? 'default' : album.id" 
                 />
               </el-select>
             </div>
@@ -681,11 +680,41 @@ const getFileExtension = (fileName: string) => {
 
 // 事件处理函数
 const handleSearch = async () => {
-  await loadFiles({
-    search: searchQuery.value || undefined,
-    type: filterType.value || undefined,
-    albumId: getSelectedAlbumId()
-  });
+  // 如果有搜索条件，使用搜索接口
+  if (searchQuery.value && searchQuery.value.trim()) {
+    try {
+      const queryParams = new URLSearchParams();
+      queryParams.append('search', searchQuery.value.trim());
+      
+      if (filterType.value) {
+        queryParams.append('type', filterType.value);
+      }
+      
+      const albumId = getSelectedAlbumId();
+      if (albumId !== undefined) {
+        queryParams.append('albumId', albumId === 'default' ? 'default' : albumId.toString());
+      }
+      
+      const url = `${API_ENDPOINTS.FILES}/search?${queryParams.toString()}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.success && data.data && Array.isArray(data.data)) {
+        files.value = data.data;
+      } else {
+        files.value = [];
+      }
+    } catch (error) {
+      console.error('搜索文件失败:', error);
+      ElMessage.error('搜索文件失败');
+    }
+  } else {
+    // 没有搜索条件，使用普通的文件列表
+    await loadFiles({
+      type: filterType.value || undefined,
+      albumId: getSelectedAlbumId()
+    });
+  }
 }
 
 const handleImageError = (e: Event) => {
@@ -886,8 +915,8 @@ const moveFilesToAlbum = async () => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        file_ids: selectedFiles.value,
-        album_id: albumId
+        fileIds: selectedFiles.value,
+        albumId: albumId
       })
     })
 
@@ -1122,7 +1151,7 @@ const startUpload = async () => {
     
     // 添加相册ID到表单数据
     if (selectedAlbumForUpload.value) {
-      formData.append('album_id', selectedAlbumForUpload.value.toString())
+      formData.append('albumId', selectedAlbumForUpload.value.toString())
     }
     
     try {
@@ -1133,12 +1162,15 @@ const startUpload = async () => {
       
       if (response.ok) {
         const result = await response.json()
-        if (result.success && result.success.length > 0) {
+        if (result.success) {
           successCount++
-          files.value.unshift(result.success[0])
+          // 正确处理返回的数据结构
+          if (result.data && Array.isArray(result.data)) {
+            files.value.unshift(...result.data)
+          }
         } else {
           failCount++
-          console.error(`上传文件 ${file.name} 失败:`, result.errors)
+          console.error(`上传文件 ${file.name} 失败:`, result.error)
         }
       } else {
         failCount++
@@ -1159,6 +1191,7 @@ const startUpload = async () => {
     uploading.value = false
     uploadProgress.value = 0
     uploadQueue.value = []
+    const targetAlbumId = selectedAlbumForUpload.value
     selectedAlbumForUpload.value = ''
     showUploadDialog.value = false
     
@@ -1167,8 +1200,33 @@ const startUpload = async () => {
       if (failCount > 0) {
         ElMessage.warning(`${failCount} 个文件上传失败`)
       }
+      
       // 重新加载相册数据以更新文件计数
       await loadAlbums()
+      
+      // 如果指定了相册，自动切换到该相册显示新上传的文件
+      if (targetAlbumId) {
+        if (targetAlbumId === 'default') {
+          // 选择的是默认相册
+          const defaultAlbum = albums.value.find(a => a.name === '默认相册')
+          if (defaultAlbum) {
+            selectedAlbum.value = defaultAlbum
+            selectedAlbumFilter.value = null
+            await loadFiles({ albumId: 'default' })
+          }
+        } else {
+          // 选择的是其他相册
+          const targetAlbum = albums.value.find(a => a.id === parseInt(targetAlbumId))
+          if (targetAlbum) {
+            selectedAlbum.value = targetAlbum
+            selectedAlbumFilter.value = null
+            await loadFiles({ albumId: targetAlbum.id })
+          }
+        }
+      } else {
+        // 如果没有指定相册，重新加载所有文件
+        await loadFiles()
+      }
     } else {
       ElMessage.error('所有文件上传失败')
     }
@@ -1210,11 +1268,11 @@ const loadFiles = async (params?: {
     // 添加查询参数
     if (params?.albumId !== undefined) {
       if (params.albumId === 'default') {
-        queryParams.append('album_id', 'default');
+        queryParams.append('albumId', 'default');
       } else if (params.albumId === null) {
-        queryParams.append('album_id', '');
+        queryParams.append('albumId', '');
       } else {
-        queryParams.append('album_id', params.albumId.toString());
+        queryParams.append('albumId', params.albumId.toString());
       }
     }
     
@@ -1239,7 +1297,7 @@ const loadFiles = async (params?: {
     const data = await response.json();
     
     // 处理分页数据结构
-    if (data.data && Array.isArray(data.data)) {
+    if (data.success && data.data && Array.isArray(data.data)) {
       files.value = data.data
     } else if (Array.isArray(data)) {
       files.value = data
@@ -1257,7 +1315,9 @@ const loadAlbums = async () => {
   try {
     const response = await fetch(API_ENDPOINTS.ALBUMS)
     const data = await response.json()
-    if (Array.isArray(data)) {
+    if (data.success && Array.isArray(data.data)) {
+      albums.value = data.data
+    } else if (Array.isArray(data)) {
       albums.value = data
     } else {
       albums.value = []
