@@ -215,7 +215,7 @@ onMounted(() => {
   align-items: center;
   height: 100%;
   padding: 0 20px;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -247,9 +247,10 @@ onMounted(() => {
 .main-content {
   margin-top: 60px;
   padding: 20px;
-  max-width: 1200px;
+  max-width: 100%;
   margin-left: auto;
   margin-right: auto;
+  width: 100%;
 }
 
 /* 移动端适配 */
@@ -263,7 +264,38 @@ onMounted(() => {
   }
   
   .main-content {
-    padding: 16px;
+    padding: 16px 12px;
+    max-width: 100%;
+    margin-top: 60px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-content {
+    padding: 0 12px;
+  }
+  
+  .logo-text {
+    font-size: 16px;
+  }
+  
+  .main-content {
+    padding: 12px 8px;
+  }
+}
+
+/* 大屏幕优化 */
+@media (min-width: 1200px) {
+  .main-content {
+    max-width: 1200px;
+    padding: 24px 40px;
+  }
+}
+
+@media (min-width: 1400px) {
+  .main-content {
+    max-width: 1400px;
+    padding: 32px 60px;
   }
 }
 </style>

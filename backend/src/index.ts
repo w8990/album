@@ -3,6 +3,8 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { 
   initDB, 
   insertFileInfo, 
@@ -18,7 +20,39 @@ import {
   updateAlbum,
   deleteAlbum,
   moveFileToAlbum,
-  moveFilesToAlbum
+  moveFilesToAlbum,
+  // 社交功能
+  getFileListWithSocial,
+  toggleLike,
+  toggleFavorite,
+  getFileComments,
+  addComment,
+  deleteComment,
+  getFileWithSocialInfo,
+  // 用户系统
+  createUser,
+  getUserByUsername,
+  getUserByEmail,
+  getUserById,
+  updateUser,
+  updateLastLogin,
+  createUserSession,
+  validateUserSession,
+  deleteUserSession,
+  cleanExpiredSessions,
+  followUser,
+  unfollowUser,
+  isFollowing,
+  getUserFollowing,
+  getUserFollowers,
+  getUserStats,
+  getUserPosts,
+  getUserFavorites,
+  insertFileInfoWithUser,
+  toggleLikeWithUserId,
+  toggleFavoriteWithUserId,
+  addCommentWithUserId,
+  deleteCommentWithUserId
 } from './db';
 
 const app = express();
@@ -790,6 +824,1143 @@ app.put('/api/files/batch/album', async (req, res) => {
     });
   }
 });
+
+// ================== 社交功能 API ==================
+
+// 获取带社交统计的文件列表
+app.get('/api/social/files', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const sortBy = req.query.sortBy as string || 'created_at';
+    const sortOrder = req.query.sortOrder as string || 'DESC';
+    const albumIdParam = req.query.album_id as string;
+    const userId = req.query.user_id as string || 'anonymous';
+
+    // 处理相册ID参数
+    let albumId: number | 'default' | null | undefined = undefined;
+    if (albumIdParam !== undefined) {
+      if (albumIdParam === '' || albumIdParam === 'null') {
+        albumId = null;
+      } else if (albumIdParam === 'default') {
+        albumId = 'default';
+      } else {
+        const parsedAlbumId = parseInt(albumIdParam);
+        if (!isNaN(parsedAlbumId)) {
+          albumId = parsedAlbumId;
+        }
+      }
+    }
+
+    const files = await getFileListWithSocial({
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+      albumId,
+      userId
+    });
+
+    res.json(files);
+  } catch (error) {
+    console.error('获取社交文件列表失败:', error);
+    res.status(500).json({ 
+      error: '获取社交文件列表失败',
+      code: 'SOCIAL_LIST_ERROR'
+    });
+  }
+});
+
+// 获取单个文件的社交信息
+app.get('/api/social/files/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const userId = req.query.user_id as string || 'anonymous';
+
+    if (isNaN(id) || id <= 0) {
+      return res.status(400).json({ 
+        error: '无效的文件ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const fileInfo = await getFileWithSocialInfo(id, userId);
+    if (!fileInfo) {
+      return res.status(404).json({ 
+        error: '文件不存在',
+        code: 'FILE_NOT_FOUND'
+      });
+    }
+
+    res.json(fileInfo);
+  } catch (error) {
+    console.error('获取文件社交信息失败:', error);
+    res.status(500).json({ 
+      error: '获取文件社交信息失败',
+      code: 'SOCIAL_INFO_ERROR'
+    });
+  }
+});
+
+// 点赞/取消点赞
+app.post('/api/social/files/:id/like', async (req, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    const { user_id = 'anonymous', user_name = '匿名用户' } = req.body;
+
+    if (isNaN(fileId) || fileId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的文件ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const result = await toggleLike(fileId, user_id, user_name);
+    
+    res.json({ 
+      success: true,
+      data: result,
+      message: result.isLiked ? '点赞成功' : '取消点赞成功'
+    });
+  } catch (error) {
+    console.error('切换点赞状态失败:', error);
+    res.status(500).json({ 
+      error: '操作失败',
+      code: 'TOGGLE_LIKE_ERROR'
+    });
+  }
+});
+
+// 收藏/取消收藏
+app.post('/api/social/files/:id/favorite', async (req, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    const { user_id = 'anonymous', user_name = '匿名用户' } = req.body;
+
+    if (isNaN(fileId) || fileId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的文件ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const result = await toggleFavorite(fileId, user_id, user_name);
+    
+    res.json({ 
+      success: true,
+      data: result,
+      message: result.isFavorited ? '收藏成功' : '取消收藏成功'
+    });
+  } catch (error) {
+    console.error('切换收藏状态失败:', error);
+    res.status(500).json({ 
+      error: '操作失败',
+      code: 'TOGGLE_FAVORITE_ERROR'
+    });
+  }
+});
+
+// 获取文件评论列表
+app.get('/api/social/files/:id/comments', async (req, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    if (isNaN(fileId) || fileId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的文件ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const comments = await getFileComments(fileId, { page, limit });
+    
+    res.json(comments);
+  } catch (error) {
+    console.error('获取评论列表失败:', error);
+    res.status(500).json({ 
+      error: '获取评论列表失败',
+      code: 'GET_COMMENTS_ERROR'
+    });
+  }
+});
+
+// 添加评论
+app.post('/api/social/files/:id/comments', async (req, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    const { content, user_id = 'anonymous', user_name = '匿名用户', parent_id } = req.body;
+
+    if (isNaN(fileId) || fileId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的文件ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    if (!content || content.trim() === '') {
+      return res.status(400).json({ 
+        error: '评论内容不能为空',
+        code: 'EMPTY_CONTENT'
+      });
+    }
+
+    const comment = await addComment(fileId, user_id, user_name, content.trim(), parent_id);
+    
+    res.json({ 
+      success: true,
+      data: comment,
+      message: '评论成功'
+    });
+  } catch (error) {
+    console.error('添加评论失败:', error);
+    res.status(500).json({ 
+      error: '添加评论失败',
+      code: 'ADD_COMMENT_ERROR'
+    });
+  }
+});
+
+// 删除评论
+app.delete('/api/social/comments/:id', async (req, res) => {
+  try {
+    const commentId = parseInt(req.params.id);
+    const { user_id = 'anonymous' } = req.body;
+
+    if (isNaN(commentId) || commentId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的评论ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const result = await deleteComment(commentId, user_id);
+    
+    if (!result) {
+      return res.status(404).json({ 
+        error: '评论不存在',
+        code: 'COMMENT_NOT_FOUND'
+      });
+    }
+
+    res.json({ 
+      success: true,
+      message: '删除评论成功'
+    });
+  } catch (error) {
+    console.error('删除评论失败:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : '删除评论失败',
+      code: 'DELETE_COMMENT_ERROR'
+    });
+  }
+});
+
+// ===================== 身份验证中间件 =====================
+
+// 生成会话令牌
+function generateSessionToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// 身份验证中间件
+async function authMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-session-token'] as string;
+    
+    if (!token) {
+      return res.status(401).json({ 
+        error: '未提供认证令牌',
+        code: 'NO_TOKEN'
+      });
+    }
+
+    const session = await validateUserSession(token);
+    
+    if (!session) {
+      return res.status(401).json({ 
+        error: '无效的认证令牌',
+        code: 'INVALID_TOKEN'
+      });
+    }
+
+    // 将用户信息添加到请求对象
+    (req as any).user = {
+      id: session.user_id,
+      username: session.username,
+      display_name: session.display_name,
+      avatar_url: session.avatar_url
+    };
+
+    next();
+  } catch (error) {
+    console.error('身份验证失败:', error);
+    res.status(401).json({ 
+      error: '身份验证失败',
+      code: 'AUTH_ERROR'
+    });
+  }
+}
+
+// 可选身份验证中间件（不强制要求登录）
+async function optionalAuthMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-session-token'] as string;
+    
+    if (token) {
+      const session = await validateUserSession(token);
+      if (session) {
+        (req as any).user = {
+          id: session.user_id,
+          username: session.username,
+          display_name: session.display_name,
+          avatar_url: session.avatar_url
+        };
+      }
+    }
+
+    next();
+  } catch (error) {
+    console.error('可选身份验证失败:', error);
+    next(); // 继续执行，不阻止请求
+  }
+}
+
+// ===================== 用户系统API =====================
+
+// 用户注册
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, email, password, display_name, bio, location, website } = req.body;
+
+    // 验证必填字段
+    if (!username || !email || !password || !display_name) {
+      return res.status(400).json({ 
+        error: '用户名、邮箱、密码和显示名称为必填项',
+        code: 'MISSING_FIELDS'
+      });
+    }
+
+    // 验证用户名格式
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      return res.status(400).json({ 
+        error: '用户名只能包含字母、数字和下划线，长度3-20个字符',
+        code: 'INVALID_USERNAME'
+      });
+    }
+
+    // 验证邮箱格式
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ 
+        error: '邮箱格式不正确',
+        code: 'INVALID_EMAIL'
+      });
+    }
+
+    // 验证密码长度
+    if (password.length < 6) {
+      return res.status(400).json({ 
+        error: '密码长度至少6个字符',
+        code: 'PASSWORD_TOO_SHORT'
+      });
+    }
+
+    // 检查用户名是否已存在
+    const existingUserByUsername = await getUserByUsername(username);
+    if (existingUserByUsername) {
+      return res.status(400).json({ 
+        error: '用户名已存在',
+        code: 'USERNAME_EXISTS'
+      });
+    }
+
+    // 检查邮箱是否已存在
+    const existingUserByEmail = await getUserByEmail(email);
+    if (existingUserByEmail) {
+      return res.status(400).json({ 
+        error: '邮箱已被注册',
+        code: 'EMAIL_EXISTS'
+      });
+    }
+
+    // 哈希密码
+    const saltRounds = 10;
+    const password_hash = await bcrypt.hash(password, saltRounds);
+
+    // 创建用户
+    const userId = await createUser({
+      username,
+      email,
+      password_hash,
+      display_name,
+      bio,
+      location,
+      website
+    });
+
+    // 创建会话
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30天后过期
+    await createUserSession(userId, sessionToken, expiresAt);
+
+    // 更新最后登录时间
+    await updateLastLogin(userId);
+
+    // 获取完整用户信息
+    const user = await getUserById(userId);
+
+    res.json({ 
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url,
+          bio: user.bio,
+          location: user.location,
+          website: user.website,
+          created_at: user.created_at
+        },
+        token: sessionToken,
+        expires_at: expiresAt
+      },
+      message: '注册成功'
+    });
+  } catch (error) {
+    console.error('用户注册失败:', error);
+    res.status(500).json({ 
+      error: '注册失败',
+      code: 'REGISTER_ERROR'
+    });
+  }
+});
+
+// 用户登录
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { login, password } = req.body; // login 可以是用户名或邮箱
+
+    if (!login || !password) {
+      return res.status(400).json({ 
+        error: '用户名/邮箱和密码为必填项',
+        code: 'MISSING_FIELDS'
+      });
+    }
+
+    // 尝试通过用户名或邮箱查找用户
+    let user = await getUserByUsername(login);
+    if (!user && login.includes('@')) {
+      user = await getUserByEmail(login);
+    }
+
+    if (!user) {
+      return res.status(400).json({ 
+        error: '用户名或密码错误',
+        code: 'INVALID_CREDENTIALS'
+      });
+    }
+
+    // 验证密码
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    if (!isPasswordValid) {
+      return res.status(400).json({ 
+        error: '用户名或密码错误',
+        code: 'INVALID_CREDENTIALS'
+      });
+    }
+
+    // 创建会话
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30天后过期
+    await createUserSession(user.id, sessionToken, expiresAt);
+
+    // 更新最后登录时间
+    await updateLastLogin(user.id);
+
+    res.json({ 
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url,
+          bio: user.bio,
+          location: user.location,
+          website: user.website,
+          created_at: user.created_at
+        },
+        token: sessionToken,
+        expires_at: expiresAt
+      },
+      message: '登录成功'
+    });
+  } catch (error) {
+    console.error('用户登录失败:', error);
+    res.status(500).json({ 
+      error: '登录失败',
+      code: 'LOGIN_ERROR'
+    });
+  }
+});
+
+// 用户登出
+app.post('/api/auth/logout', authMiddleware, async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') || req.headers['x-session-token'] as string;
+    
+    if (token) {
+      await deleteUserSession(token);
+    }
+
+    res.json({ 
+      success: true,
+      message: '登出成功'
+    });
+  } catch (error) {
+    console.error('用户登出失败:', error);
+    res.status(500).json({ 
+      error: '登出失败',
+      code: 'LOGOUT_ERROR'
+    });
+  }
+});
+
+// 获取当前用户信息
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const user = await getUserById(userId);
+    const stats = await getUserStats(userId);
+
+    if (!user) {
+      return res.status(404).json({ 
+        error: '用户不存在',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    res.json({ 
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url,
+          bio: user.bio,
+          location: user.location,
+          website: user.website,
+          created_at: user.created_at,
+          last_login_at: user.last_login_at
+        },
+        stats
+      }
+    });
+  } catch (error) {
+    console.error('获取用户信息失败:', error);
+    res.status(500).json({ 
+      error: '获取用户信息失败',
+      code: 'GET_USER_ERROR'
+    });
+  }
+});
+
+// 更新用户信息
+app.put('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { display_name, bio, location, website, email } = req.body;
+
+    // 如果要更新邮箱，检查是否已被其他用户使用
+    if (email) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ 
+          error: '邮箱格式不正确',
+          code: 'INVALID_EMAIL'
+        });
+      }
+
+      const existingUser = await getUserByEmail(email);
+      if (existingUser && existingUser.id !== userId) {
+        return res.status(400).json({ 
+          error: '邮箱已被其他用户使用',
+          code: 'EMAIL_EXISTS'
+        });
+      }
+    }
+
+    const success = await updateUser(userId, {
+      display_name,
+      bio,
+      location,
+      website,
+      email
+    });
+
+    if (!success) {
+      return res.status(400).json({ 
+        error: '没有可更新的字段',
+        code: 'NO_FIELDS_TO_UPDATE'
+      });
+    }
+
+    // 获取更新后的用户信息
+    const user = await getUserById(userId);
+
+    res.json({ 
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url,
+          bio: user.bio,
+          location: user.location,
+          website: user.website
+        }
+      },
+      message: '用户信息更新成功'
+    });
+  } catch (error) {
+    console.error('更新用户信息失败:', error);
+    res.status(500).json({ 
+      error: '更新用户信息失败',
+      code: 'UPDATE_USER_ERROR'
+    });
+  }
+});
+
+// 获取用户详情（公开信息）
+app.get('/api/users/:id', optionalAuthMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const viewerId = (req as any).user?.id;
+
+    if (isNaN(userId) || userId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的用户ID',
+        code: 'INVALID_USER_ID'
+      });
+    }
+
+    const user = await getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        error: '用户不存在',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    const stats = await getUserStats(userId);
+    
+    // 检查关注状态（如果访问者已登录）
+    let isCurrentUserFollowing = false;
+    if (viewerId && viewerId !== userId) {
+      isCurrentUserFollowing = await isFollowing(viewerId, userId);
+    }
+
+    res.json({ 
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url,
+          bio: user.bio,
+          location: user.location,
+          website: user.website,
+          created_at: user.created_at
+        },
+        stats,
+        isFollowing: isCurrentUserFollowing,
+        isOwnProfile: viewerId === userId
+      }
+    });
+  } catch (error) {
+    console.error('获取用户详情失败:', error);
+    res.status(500).json({ 
+      error: '获取用户详情失败',
+      code: 'GET_USER_PROFILE_ERROR'
+    });
+  }
+});
+
+// 获取用户动态列表
+app.get('/api/users/:id/posts', optionalAuthMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const viewerId = (req as any).user?.id;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    if (isNaN(userId) || userId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的用户ID',
+        code: 'INVALID_USER_ID'
+      });
+    }
+
+    const result = await getUserPosts(userId, { page, limit, viewerId });
+
+    res.json({ 
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('获取用户动态失败:', error);
+    res.status(500).json({ 
+      error: '获取用户动态失败',
+      code: 'GET_USER_POSTS_ERROR'
+    });
+  }
+});
+
+// 获取用户收藏列表
+app.get('/api/users/:id/favorites', authMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const currentUserId = (req as any).user.id;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    if (isNaN(userId) || userId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的用户ID',
+        code: 'INVALID_USER_ID'
+      });
+    }
+
+    // 只允许查看自己的收藏
+    if (userId !== currentUserId) {
+      return res.status(403).json({ 
+        error: '无权查看他人收藏',
+        code: 'FORBIDDEN'
+      });
+    }
+
+    const result = await getUserFavorites(userId, { page, limit });
+
+    res.json({ 
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('获取用户收藏失败:', error);
+    res.status(500).json({ 
+      error: '获取用户收藏失败',
+      code: 'GET_USER_FAVORITES_ERROR'
+    });
+  }
+});
+
+// 关注用户
+app.post('/api/users/:id/follow', authMiddleware, async (req, res) => {
+  try {
+    const followingId = parseInt(req.params.id);
+    const followerId = (req as any).user.id;
+
+    if (isNaN(followingId) || followingId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的用户ID',
+        code: 'INVALID_USER_ID'
+      });
+    }
+
+    if (followingId === followerId) {
+      return res.status(400).json({ 
+        error: '不能关注自己',
+        code: 'CANNOT_FOLLOW_SELF'
+      });
+    }
+
+    // 检查目标用户是否存在
+    const targetUser = await getUserById(followingId);
+    if (!targetUser) {
+      return res.status(404).json({ 
+        error: '用户不存在',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    const success = await followUser(followerId, followingId);
+    
+    res.json({ 
+      success: true,
+      data: { isFollowing: success },
+      message: success ? '关注成功' : '已经关注过该用户'
+    });
+  } catch (error) {
+    console.error('关注用户失败:', error);
+    res.status(500).json({ 
+      error: '关注用户失败',
+      code: 'FOLLOW_USER_ERROR'
+    });
+  }
+});
+
+// 取消关注用户
+app.delete('/api/users/:id/follow', authMiddleware, async (req, res) => {
+  try {
+    const followingId = parseInt(req.params.id);
+    const followerId = (req as any).user.id;
+
+    if (isNaN(followingId) || followingId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的用户ID',
+        code: 'INVALID_USER_ID'
+      });
+    }
+
+    const success = await unfollowUser(followerId, followingId);
+    
+    res.json({ 
+      success: true,
+      data: { isFollowing: false },
+      message: success ? '取消关注成功' : '您未关注该用户'
+    });
+  } catch (error) {
+    console.error('取消关注失败:', error);
+    res.status(500).json({ 
+      error: '取消关注失败',
+      code: 'UNFOLLOW_USER_ERROR'
+    });
+  }
+});
+
+// 获取用户关注列表
+app.get('/api/users/:id/following', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    if (isNaN(userId) || userId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的用户ID',
+        code: 'INVALID_USER_ID'
+      });
+    }
+
+    const result = await getUserFollowing(userId, { page, limit });
+
+    res.json({ 
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('获取关注列表失败:', error);
+    res.status(500).json({ 
+      error: '获取关注列表失败',
+      code: 'GET_FOLLOWING_ERROR'
+    });
+  }
+});
+
+// 获取用户粉丝列表
+app.get('/api/users/:id/followers', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id);
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+
+    if (isNaN(userId) || userId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的用户ID',
+        code: 'INVALID_USER_ID'
+      });
+    }
+
+    const result = await getUserFollowers(userId, { page, limit });
+
+    res.json({ 
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('获取粉丝列表失败:', error);
+    res.status(500).json({ 
+      error: '获取粉丝列表失败',
+      code: 'GET_FOLLOWERS_ERROR'
+    });
+  }
+});
+
+// ===================== 更新后的社交功能API（使用真实用户ID） =====================
+
+// 修改社交动态列表API以支持用户系统
+app.get('/api/social/files', optionalAuthMiddleware, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const userId = (req as any).user?.id; // 可选的用户ID
+
+    console.log('请求动态列表参数:', { page, limit, userId })
+
+    const files = await getFileListWithSocial({
+      page,
+      limit,
+      userId: userId?.toString() // 转换为字符串以兼容现有方法
+    });
+
+    console.log('响应数据:', files)
+    res.json(files);
+  } catch (error) {
+    console.error('获取动态列表失败:', error);
+    res.status(500).json({ 
+      error: '获取动态列表失败',
+      code: 'SOCIAL_LIST_ERROR'
+    });
+  }
+});
+
+// 修改点赞API以使用真实用户ID
+app.post('/api/social/files/:id/like', authMiddleware, async (req, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    const userId = (req as any).user.id;
+
+    if (isNaN(fileId) || fileId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的文件ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const result = await toggleLikeWithUserId(fileId, userId);
+    
+    res.json({ 
+      success: true,
+      data: result,
+      message: result.isLiked ? '点赞成功' : '取消点赞成功'
+    });
+  } catch (error) {
+    console.error('点赞操作失败:', error);
+    res.status(500).json({ 
+      error: '操作失败',
+      code: 'TOGGLE_LIKE_ERROR'
+    });
+  }
+});
+
+// 修改收藏API以使用真实用户ID
+app.post('/api/social/files/:id/favorite', authMiddleware, async (req, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    const userId = (req as any).user.id;
+
+    if (isNaN(fileId) || fileId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的文件ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const result = await toggleFavoriteWithUserId(fileId, userId);
+    
+    res.json({ 
+      success: true,
+      data: result,
+      message: result.isFavorited ? '收藏成功' : '取消收藏成功'
+    });
+  } catch (error) {
+    console.error('收藏操作失败:', error);
+    res.status(500).json({ 
+      error: '操作失败',
+      code: 'TOGGLE_FAVORITE_ERROR'
+    });
+  }
+});
+
+// 修改添加评论API以使用真实用户ID
+app.post('/api/social/files/:id/comments', authMiddleware, async (req, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    const userId = (req as any).user.id;
+    const { content, parent_id } = req.body;
+
+    if (isNaN(fileId) || fileId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的文件ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    if (!content || content.trim() === '') {
+      return res.status(400).json({ 
+        error: '评论内容不能为空',
+        code: 'EMPTY_CONTENT'
+      });
+    }
+
+    const comment = await addCommentWithUserId(fileId, userId, content.trim(), parent_id);
+    
+    res.json({ 
+      success: true,
+      data: comment,
+      message: '评论成功'
+    });
+  } catch (error) {
+    console.error('添加评论失败:', error);
+    res.status(500).json({ 
+      error: '添加评论失败',
+      code: 'ADD_COMMENT_ERROR'
+    });
+  }
+});
+
+// 修改删除评论API以使用真实用户ID
+app.delete('/api/social/comments/:id', authMiddleware, async (req, res) => {
+  try {
+    const commentId = parseInt(req.params.id);
+    const userId = (req as any).user.id;
+
+    if (isNaN(commentId) || commentId <= 0) {
+      return res.status(400).json({ 
+        error: '无效的评论ID',
+        code: 'INVALID_ID'
+      });
+    }
+
+    const result = await deleteCommentWithUserId(commentId, userId);
+    
+    if (!result) {
+      return res.status(404).json({ 
+        error: '评论不存在',
+        code: 'COMMENT_NOT_FOUND'
+      });
+    }
+
+    res.json({ 
+      success: true,
+      message: '删除评论成功'
+    });
+  } catch (error) {
+    console.error('删除评论失败:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : '删除评论失败',
+      code: 'DELETE_COMMENT_ERROR'
+    });
+  }
+});
+
+// 修改上传API以关联用户
+app.post('/api/upload', authMiddleware, upload.array('files', 10), async (req, res) => {
+  try {
+    const files = req.files as Express.Multer.File[];
+    const albumId = req.body.album_id ? parseInt(req.body.album_id) : undefined;
+    const userId = (req as any).user.id;
+    const { caption, tags, location, privacy_level } = req.body;
+    
+    if (!files || files.length === 0) {
+      return res.status(400).json({ 
+        error: '没有上传文件',
+        code: 'NO_FILES'
+      });
+    }
+
+    const uploadResults = [];
+    const errors = [];
+
+    for (const file of files) {
+      try {
+        const fileInfo = {
+          filename: file.filename,
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          url: `/uploads/${file.filename}`,
+          album_id: albumId,
+          user_id: userId,
+          caption: caption || '',
+          tags: tags ? (Array.isArray(tags) ? tags : [tags]) : [],
+          location: location || '',
+          privacy_level: privacy_level || 'public'
+        };
+
+        // 保存文件信息到数据库
+        const result = await insertFileInfoWithUser(fileInfo);
+        const id = (result as any).insertId;
+
+        uploadResults.push({
+          id,
+          ...fileInfo,
+          created_at: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error(`保存文件 ${file.originalname} 信息失败:`, error);
+        errors.push({
+          filename: file.originalname,
+          error: '保存文件信息失败'
+        });
+        
+        // 删除上传的文件
+        const filePath = path.join(uploadDir, file.filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+    }
+
+    if (uploadResults.length === 0) {
+      return res.status(500).json({ 
+        error: '所有文件上传失败',
+        code: 'ALL_FAILED',
+        details: errors
+      });
+    }
+
+    const response = {
+      success: uploadResults,
+      errors: errors.length > 0 ? errors : undefined,
+      message: `成功上传 ${uploadResults.length} 个文件${errors.length > 0 ? `，${errors.length} 个失败` : ''}`
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('上传失败:', error);
+    
+    // 清理已上传的文件
+    const files = req.files as Express.Multer.File[];
+    if (files) {
+      files.forEach(file => {
+        const filePath = path.join(uploadDir, file.filename);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+          } catch (cleanupError) {
+            console.error('清理文件失败:', cleanupError);
+          }
+        }
+      });
+    }
+
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : '上传失败',
+      code: 'UPLOAD_ERROR'
+    });
+  }
+});
+
+// 定期清理过期会话
+setInterval(async () => {
+  try {
+    const cleaned = await cleanExpiredSessions();
+    if (cleaned > 0) {
+      console.log(`清理了 ${cleaned} 个过期会话`);
+    }
+  } catch (error) {
+    console.error('清理过期会话失败:', error);
+  }
+}, 60 * 60 * 1000); // 每小时执行一次
 
 // 全局错误处理中间件
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

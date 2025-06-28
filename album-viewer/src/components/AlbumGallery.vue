@@ -110,13 +110,15 @@
         <!-- 互动数据 -->
         <div class="post-stats">
           <span v-if="post.likes > 0" class="stat-item" @click="showLikesList(post)">
-            <el-icon><Heart /></el-icon>
+            <el-icon><StarFilled /></el-icon>
             {{ post.likes }}人点赞
           </span>
           <span v-if="post.comments > 0" class="stat-item" @click="openComments(post)">
+            <el-icon><ChatDotSquare /></el-icon>
             {{ post.comments }}条评论
           </span>
           <span v-if="post.shares > 0" class="stat-item">
+            <el-icon><Share /></el-icon>
             {{ post.shares }}次分享
           </span>
         </div>
@@ -124,45 +126,44 @@
         <!-- 互动按钮 -->
         <div class="post-actions">
           <el-button
-            :type="post.isLiked ? 'danger' : 'default'"
-            :icon="Heart"
-            size="large"
+            text
             @click="toggleLike(post)"
             class="action-btn"
             :class="{ 'liked': post.isLiked }"
           >
-            {{ post.isLiked ? '已赞' : '点赞' }}
+            <el-icon><StarFilled /></el-icon>
+            <span class="action-text">{{ post.isLiked ? '已赞' : '点赞' }}</span>
+            <span v-if="post.likes > 0" class="action-count">({{ post.likes }})</span>
           </el-button>
           
           <el-button
-            type="default"
-            :icon="ChatDotSquare"
-            size="large"
+            text
             @click="openComments(post)"
             class="action-btn"
           >
-            评论
+            <el-icon><ChatDotSquare /></el-icon>
+            <span class="action-text">评论</span>
+            <span v-if="post.comments > 0" class="action-count">({{ post.comments }})</span>
           </el-button>
           
           <el-button
-            type="default"
-            :icon="Share"
-            size="large"
+            text
             @click="sharePost(post)"
             class="action-btn"
           >
-            分享
+            <el-icon><Share /></el-icon>
+            <span class="action-text">分享</span>
+            <span v-if="post.shares > 0" class="action-count">({{ post.shares }})</span>
           </el-button>
 
           <el-button
-            :type="post.isFavorited ? 'warning' : 'default'"
-            :icon="Star"
-            size="large"
+            text
             @click="toggleFavorite(post)"
             class="action-btn"
             :class="{ 'favorited': post.isFavorited }"
           >
-            {{ post.isFavorited ? '已收藏' : '收藏' }}
+            <el-icon><component :is="post.isFavorited ? 'StarFilled' : 'Star'" /></el-icon>
+            <span class="action-text">{{ post.isFavorited ? '已收藏' : '收藏' }}</span>
           </el-button>
         </div>
 
@@ -270,9 +271,22 @@
       class="image-viewer-dialog"
     >
       <div v-if="currentPost" class="image-viewer">
+        <!-- 用户信息 -->
+        <div class="viewer-user-info">
+          <el-avatar :size="40">{{ currentPost.author.charAt(0).toUpperCase() }}</el-avatar>
+          <div class="user-details">
+            <div class="username">{{ currentPost.author }}</div>
+            <div class="post-time">{{ formatTimeAgo(currentPost.createdAt) }}</div>
+            <div v-if="currentPost.location" class="location">
+              <el-icon><Location /></el-icon>
+              {{ currentPost.location }}
+            </div>
+          </div>
+        </div>
+
         <el-carousel
           ref="carouselRef"
-          :height="isMobile ? '400px' : '600px'"
+          :height="isMobile ? '300px' : '450px'"
           indicator-position="outside"
           arrow="always"
         >
@@ -286,12 +300,23 @@
               fit="contain"
               class="viewer-image"
             />
-            <div class="image-info">
-              <h3>{{ image.title }}</h3>
-              <p>{{ image.description }}</p>
-            </div>
           </el-carousel-item>
         </el-carousel>
+
+        <!-- 内容和标签 -->
+        <div v-if="currentPost.content || (currentPost.tags && currentPost.tags.length)" class="viewer-content">
+          <div v-if="currentPost.content" class="post-text">{{ currentPost.content }}</div>
+          <div v-if="currentPost.tags && currentPost.tags.length" class="post-tags">
+            <el-tag
+              v-for="tag in currentPost.tags"
+              :key="tag"
+              size="small"
+              class="tag-item"
+            >
+              #{{ tag }}
+            </el-tag>
+          </div>
+        </div>
       </div>
     </el-dialog>
 
@@ -345,7 +370,7 @@
               <p class="comment-text">{{ comment.content }}</p>
               <div class="comment-actions">
                 <el-button text @click="toggleCommentLike(comment)">
-                  <el-icon :class="{ 'liked': comment.isLiked }"><Heart /></el-icon>
+                  <el-icon :class="{ 'liked': comment.isLiked }"><StarFilled /></el-icon>
                   {{ comment.likes || 0 }}
                 </el-button>
                 <el-button text @click="replyToComment(comment)">回复</el-button>
@@ -386,7 +411,21 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, inject, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  StarFilled,
+  ChatDotSquare,
+  Share,
+  Star,
+  Plus,
+  Search,
+  Location,
+  MoreFilled,
+  Link,
+  ChatSquare,
+  Camera,
+  User
+} from '@element-plus/icons-vue'
 import albumService from '../api/albumService.js'
 
 // 注入用户认证状态
@@ -418,6 +457,9 @@ const showShareDialog = ref(false)
 const currentPost = ref(null)
 const currentComments = ref([])
 const currentImageIndex = ref(0)
+
+// 组件引用
+const carouselRef = ref()
 
 // 评论相关
 const newComment = ref('')
@@ -675,6 +717,8 @@ const copyLink = async () => {
   const link = `${window.location.origin}/post/${currentPost.value.id}`
   try {
     await navigator.clipboard.writeText(link)
+    // 增加分享次数
+    currentPost.value.shares = (currentPost.value.shares || 0) + 1
     ElMessage.success('链接已复制')
     showShareDialog.value = false
   } catch (err) {
@@ -683,17 +727,54 @@ const copyLink = async () => {
 }
 
 const shareToWeChat = () => {
+  // 增加分享次数
+  currentPost.value.shares = (currentPost.value.shares || 0) + 1
   ElMessage.info('请在微信中打开分享')
+  showShareDialog.value = false
 }
 
 const shareToWeibo = () => {
   const url = `${window.location.origin}/post/${currentPost.value.id}`
   const text = `${currentPost.value.content} - 来自相册分享`
+  // 增加分享次数
+  currentPost.value.shares = (currentPost.value.shares || 0) + 1
   window.open(`https://service.weibo.com/share/share.php?url=${encodeURIComponent(url)}&title=${encodeURIComponent(text)}`)
+  showShareDialog.value = false
 }
 
 const shareToQQ = () => {
+  // 增加分享次数
+  currentPost.value.shares = (currentPost.value.shares || 0) + 1
   ElMessage.info('QQ分享功能开发中')
+  showShareDialog.value = false
+}
+
+// 显示点赞列表 - 模拟功能
+const showLikesList = (post) => {
+  ElMessage.info(`${post.likes}人点赞了这条动态`)
+}
+
+// 举报动态 - 模拟功能
+const reportPost = (post) => {
+  ElMessage.info('举报功能开发中')
+}
+
+// 删除动态 - 模拟功能
+const deletePost = (post) => {
+  ElMessage.confirm('确定要删除这条动态吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    // 从列表中移除
+    const index = posts.value.findIndex(p => p.id === post.id)
+    if (index > -1) {
+      posts.value.splice(index, 1)
+      ElMessage.success('删除成功')
+    }
+  }).catch(() => {
+    // 用户取消删除
+  })
 }
 
 // 工具函数
@@ -734,7 +815,7 @@ onMounted(async () => {
 
 <style scoped>
 .social-feed {
-  max-width: 600px;
+  max-width: 100%;
   margin: 0 auto;
   padding: 0 16px;
 }
@@ -864,12 +945,31 @@ onMounted(async () => {
   grid-template-columns: 1fr;
 }
 
+.grid-single .image-item {
+  aspect-ratio: 16/9; /* 更适合宽屏显示 */
+  max-height: 350px;
+}
+
 .grid-two {
   grid-template-columns: 1fr 1fr;
 }
 
+.grid-two .image-item {
+  aspect-ratio: 1;
+}
+
 .grid-three {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.grid-three .image-item:first-child {
+  grid-row: 1 / -1;
+  aspect-ratio: 4/5;
+}
+
+.grid-three .image-item:not(:first-child) {
+  aspect-ratio: 1;
 }
 
 .grid-four {
@@ -877,21 +977,35 @@ onMounted(async () => {
   grid-template-rows: 1fr 1fr;
 }
 
+.grid-four .image-item {
+  aspect-ratio: 1;
+}
+
 .grid-multiple {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr;
   grid-template-rows: 1fr 1fr 1fr;
+}
+
+.grid-multiple .image-item:first-child {
+  grid-row: 1 / -1;
+  aspect-ratio: 4/5;
+}
+
+.grid-multiple .image-item:not(:first-child) {
+  aspect-ratio: 1;
 }
 
 .image-item {
   position: relative;
-  aspect-ratio: 1;
   cursor: pointer;
   overflow: hidden;
+  background-color: #f5f5f5;
 }
 
 .feed-image {
   width: 100%;
   height: 100%;
+  object-fit: cover;
   transition: transform 0.3s ease;
 }
 
@@ -920,32 +1034,49 @@ onMounted(async () => {
   font-size: 14px;
   color: #606266;
   border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  gap: 16px;
 }
 
 .stat-item {
-  margin-right: 16px;
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
+  padding: 4px 0;
+  border-radius: 4px;
+  transition: color 0.3s ease;
 }
 
 .stat-item:hover {
   color: #409eff;
 }
 
+.stat-item .el-icon {
+  font-size: 14px;
+}
+
 /* 互动按钮 */
 .post-actions {
   display: flex;
   padding: 8px;
+  border-top: 1px solid #f0f0f0;
 }
 
 .action-btn {
   flex: 1;
   margin: 0 4px;
+  padding: 8px 12px;
   border: none;
   background: transparent;
   color: #606266;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 14px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
 }
 
 .action-btn:hover {
@@ -957,8 +1088,32 @@ onMounted(async () => {
   color: #f56c6c;
 }
 
+.action-btn.liked:hover {
+  color: #f56c6c;
+  background: #fef0f0;
+}
+
 .action-btn.favorited {
   color: #e6a23c;
+}
+
+.action-btn.favorited:hover {
+  color: #e6a23c;
+  background: #fdf6ec;
+}
+
+.action-btn .el-icon {
+  font-size: 16px;
+}
+
+.action-text {
+  font-weight: 500;
+}
+
+.action-count {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 2px;
 }
 
 /* 评论预览 */
@@ -1087,26 +1242,246 @@ onMounted(async () => {
   gap: 8px;
 }
 
-/* 移动端适配 */
-@media (max-width: 768px) {
+/* 超大屏幕适配 */
+@media (min-width: 1600px) {
   .social-feed {
+    max-width: 1400px;
+    padding: 0 40px;
+  }
+  
+  .post-composer,
+  .feed-filters,
+  .feed-item {
+    padding: 24px;
+  }
+  
+  .grid-single .image-item {
+    max-height: 450px;
+  }
+}
+
+/* 大屏幕适配 */
+@media (min-width: 1200px) and (max-width: 1599px) {
+  .social-feed {
+    max-width: 1200px;
+    padding: 0 32px;
+  }
+  
+  .post-composer,
+  .feed-filters,
+  .feed-item {
+    padding: 20px;
+  }
+  
+  .grid-single .image-item {
+    max-height: 400px;
+  }
+}
+
+/* 中等屏幕适配 */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .social-feed {
+    max-width: 900px;
+    padding: 0 24px;
+  }
+  
+  .post-composer,
+  .feed-filters,
+  .feed-item {
+    padding: 18px;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 767px) {
+  .social-feed {
+    max-width: 100%;
     padding: 0 8px;
   }
   
   .post-composer,
   .feed-filters,
   .feed-item {
-    border-radius: 0;
-    margin-left: -8px;
-    margin-right: -8px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .feed-filters {
+    padding: 12px;
+  }
+  
+  .search-input {
+    margin-top: 12px;
   }
   
   .images-grid.grid-multiple {
     grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+  }
+  
+  .grid-three {
+    grid-template-columns: 1fr 1fr;
+  }
+  
+  .grid-three .image-item:first-child {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    aspect-ratio: 16/9;
+  }
+  
+  .grid-three .image-item:not(:first-child) {
+    aspect-ratio: 1;
+  }
+  
+  .grid-multiple .image-item:first-child {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    aspect-ratio: 16/9;
   }
   
   .action-btn {
+    font-size: 12px;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+  
+  .action-btn .el-icon {
     font-size: 14px;
   }
+  
+  .action-text {
+    font-size: 12px;
+  }
+  
+  .action-count {
+    font-size: 11px;
+  }
+  
+  .post-header {
+    padding: 12px;
+  }
+  
+  .post-content {
+    padding: 0 12px;
+  }
+  
+  .post-stats {
+    padding: 8px 12px;
+  }
+  
+  .comments-preview {
+    padding: 0 12px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .social-feed {
+    padding: 0 4px;
+  }
+  
+  .images-grid.grid-two,
+  .images-grid.grid-three,
+  .images-grid.grid-four,
+  .images-grid.grid-multiple {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  
+  .grid-single .image-item {
+    aspect-ratio: 16/9;
+  }
+  
+  .images-grid:not(.grid-single) .image-item {
+    aspect-ratio: 4/3;
+  }
+  
+  .action-btn {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+  
+  /* 移动端图片查看器优化 */
+  .viewer-user-info {
+    padding: 12px 0;
+  }
+  
+  .viewer-user-info .username {
+    font-size: 14px;
+  }
+  
+  .viewer-content {
+    padding: 12px 0;
+  }
+  
+  .viewer-content .post-text {
+    font-size: 14px;
+  }
+}
+
+/* 图片查看器样式 */
+.image-viewer {
+  text-align: center;
+}
+
+.viewer-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+
+.viewer-user-info .user-details {
+  text-align: left;
+}
+
+.viewer-user-info .username {
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 4px;
+}
+
+.viewer-user-info .post-time {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+
+.viewer-user-info .location {
+  font-size: 12px;
+  color: #606266;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.viewer-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+}
+
+.viewer-content {
+  padding: 16px 0;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 16px;
+  text-align: left;
+}
+
+.viewer-content .post-text {
+  margin-bottom: 12px;
+  line-height: 1.6;
+  color: #303133;
+}
+
+.viewer-content .post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.viewer-content .tag-item {
+  cursor: default;
 }
 </style>
