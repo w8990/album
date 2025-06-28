@@ -478,12 +478,31 @@ class AlbumService {
         limit
       })
       
-      const response = await fetch(`${API_BASE_URL}/files?${queryParams}`)
-      const data = await response.json()
+      console.log('发起网络请求:', `${API_BASE_URL}/files?${queryParams}`)
       
-      if (data && data.files) {
+      const response = await fetch(`${API_BASE_URL}/files?${queryParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        mode: 'cors', // 明确指定CORS模式
+        credentials: 'include' // 包含凭据
+      })
+      
+      console.log('响应状态:', response.status, response.statusText)
+      console.log('响应头:', Object.fromEntries(response.headers.entries()))
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      console.log('响应数据:', data)
+      
+      // 修正：后端返回格式为 { data: [...], pagination: {...} }，而不是 { files: [...] }
+      if (data && data.data && Array.isArray(data.data)) {
         // 将files数据转换为社交动态格式
-        const posts = data.files.map(file => ({
+        const posts = data.data.map(file => ({
           id: file.id,
           authorId: 1,
           author: '摄影师', // 后端没有用户系统，使用默认作者
@@ -491,7 +510,7 @@ class AlbumService {
           content: file.originalname || '分享一张精彩的照片',
           images: [{
             id: file.id,
-            url: `http://localhost:3000${file.url}`,
+            url: `${API_BASE_URL.replace('/api', '')}${file.url}`,
             title: file.originalname,
             description: file.originalname
           }],
@@ -507,22 +526,41 @@ class AlbumService {
           latestComments: []
         }))
         
+        console.log('转换后的数据:', posts)
+        
         return {
           success: true,
           data: {
             posts,
-            total: data.total,
-            page: data.page,
-            limit: data.limit,
-            hasMore: data.hasMore
+            total: data.pagination.total,
+            page: data.pagination.page,
+            limit: data.pagination.limit,
+            hasMore: data.pagination.page < data.pagination.totalPages
           }
         }
       } else {
         throw new Error('API响应格式错误')
       }
     } catch (error) {
-      console.error('获取动态列表失败:', error)
-      return { success: false, message: '获取动态列表失败: ' + error.message }
+      console.error('获取动态列表失败详细信息:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        type: typeof error,
+        error: error
+      })
+      
+      // 提供更详细的错误信息
+      let errorMessage = '获取动态列表失败: '
+      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+        errorMessage += '网络连接失败，请检查网络连接或服务器状态'
+      } else if (error.message.includes('CORS')) {
+        errorMessage += '跨域请求被阻止，请联系管理员'
+      } else {
+        errorMessage += error.message
+      }
+      
+      return { success: false, message: errorMessage }
     }
   }
 
@@ -587,7 +625,7 @@ class AlbumService {
           content: postData.content,
           images: data.success.map(file => ({
             id: file.id,
-            url: `http://localhost:3000${file.url}`,
+            url: `${API_BASE_URL.replace('/api', '')}${file.url}`,
             title: file.originalname,
             description: file.originalname
           })),
