@@ -5,13 +5,16 @@ import { useUserStore } from '../stores/user.js'
 const Home = () => import('../views/Home.vue')
 const Login = () => import('../views/Login.vue')
 const Register = () => import('../views/Register.vue')
+const Profile = () => import('../views/Profile.vue')
+const MyAlbums = () => import('../views/MyAlbums.vue')
+const Favorites = () => import('../views/Favorites.vue')
+const Settings = () => import('../views/Settings.vue')
+const AppLayout = () => import('../components/AppLayout.vue')
 
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: Home,
-    meta: { requiresAuth: false }
+    redirect: '/home'
   },
   {
     path: '/login',
@@ -32,6 +35,57 @@ const routes = [
       hideForAuth: true,
       title: '用户注册'
     }
+  },
+  {
+    path: '/',
+    component: AppLayout,
+    children: [
+      {
+        path: 'home',
+        name: 'Home',
+        component: Home,
+        meta: { 
+          requiresAuth: false,
+          title: '首页'
+        }
+      },
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: Profile,
+        meta: { 
+          requiresAuth: true,
+          title: '个人资料'
+        }
+      },
+      {
+        path: 'my-albums',
+        name: 'MyAlbums',
+        component: MyAlbums,
+        meta: { 
+          requiresAuth: true,
+          title: '我的相册'
+        }
+      },
+      {
+        path: 'favorites',
+        name: 'Favorites',
+        component: Favorites,
+        meta: { 
+          requiresAuth: true,
+          title: '我的收藏'
+        }
+      },
+      {
+        path: 'settings',
+        name: 'Settings',
+        component: Settings,
+        meta: { 
+          requiresAuth: true,
+          title: '设置'
+        }
+      }
+    ]
   }
 ]
 

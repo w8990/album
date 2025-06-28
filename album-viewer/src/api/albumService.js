@@ -575,6 +575,31 @@ class AlbumService {
     }
   }
 
+  // 删除动态/文件
+  async deletePost(postId) {
+    try {
+      if (!this.isLoggedIn()) {
+        return { success: false, message: '请先登录' }
+      }
+
+      const response = await fetch(`${API_BASE_URL}/files/${postId}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders()
+      })
+
+      const data = await response.json()
+      
+      if (data.success || response.ok) {
+        return { success: true, message: '删除成功' }
+      } else {
+        throw new Error(data.error || data.message || '删除失败')
+      }
+    } catch (error) {
+      console.error('删除文件失败:', error)
+      return { success: false, message: '删除失败: ' + error.message }
+    }
+  }
+
   // ===================== 兼容旧接口 =====================
   async toggleLike(albumId, isLiked) { return this.togglePostLike(albumId, isLiked) }
   async toggleFavorite(albumId, isFavorited) { return this.togglePostFavorite(albumId, isFavorited) }

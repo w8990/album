@@ -38,7 +38,11 @@
       
       <template #dropdown>
         <el-dropdown-menu>
-          <el-dropdown-item command="profile">
+          <el-dropdown-item command="home">
+            <el-icon><House /></el-icon>
+            <span>首页</span>
+          </el-dropdown-item>
+          <el-dropdown-item command="profile" divided>
             <el-icon><User /></el-icon>
             <span>个人资料</span>
           </el-dropdown-item>
@@ -74,7 +78,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
-  User, ArrowDown, Picture, Star, Setting, SwitchButton, Loading 
+  User, ArrowDown, Picture, Star, Setting, SwitchButton, Loading, House 
 } from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/user.js'
 
@@ -104,17 +108,20 @@ const goToRegister = () => {
 // 处理下拉菜单命令
 const handleCommand = async (command) => {
   switch (command) {
+    case 'home':
+      router.push('/')
+      break
     case 'profile':
-      ElMessage.info('个人资料页面开发中...')
+      router.push('/profile')
       break
     case 'albums':
-      ElMessage.info('我的相册页面开发中...')
+      router.push('/my-albums')
       break
     case 'favorites':
-      ElMessage.info('我的收藏页面开发中...')
+      router.push('/favorites')
       break
     case 'settings':
-      ElMessage.info('设置页面开发中...')
+      router.push('/settings')
       break
     case 'logout':
       await handleLogout()
