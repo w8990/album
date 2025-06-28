@@ -606,34 +606,205 @@ class AlbumService {
   async getComments(albumId) { return this.getPostComments(albumId) }
   async addComment(albumId, content) { return this.addPostComment(albumId, content) }
 
-  // 获取相册列表 - 暂时返回空
+  // ===================== 相册管理API =====================
+  
+  // 创建相册
+  async createAlbum(albumData) {
+    try {
+      if (!this.isLoggedIn()) {
+        return { success: false, message: '请先登录' }
+      }
+
+      if (!albumData.name || !albumData.name.trim()) {
+        return { success: false, message: '相册名称不能为空' }
+      }
+
+      const response = await fetch(`${API_BASE_URL}/albums`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({
+          name: albumData.name.trim(),
+          description: albumData.description?.trim() || ''
+        })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        return { 
+          success: true, 
+          data: data.data, 
+          message: data.message || '相册创建成功' 
+        }
+      } else {
+        return { success: false, message: data.error || '创建相册失败' }
+      }
+    } catch (error) {
+      console.error('创建相册失败:', error)
+      return { success: false, message: '网络错误，创建相册失败' }
+    }
+  }
+
+  // 获取相册列表
   async getAlbums(params = {}) {
-    return { success: true, data: { albums: [], total: 0, hasMore: false } }
+    try {
+      const response = await fetch(`${API_BASE_URL}/albums`, {
+        method: 'GET',
+        headers: this.getAuthHeaders()
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        // 转换为前端需要的格式
+        const albums = data.data.map(album => ({
+          id: album.id,
+          name: album.name,
+          title: album.name, // 兼容字段
+          description: album.description || '',
+          cover: album.cover_url ? `${API_BASE_URL.replace('/api', '')}${album.cover_url}` : null,
+          coverUrl: album.cover_url,
+          fileCount: album.file_count || 0,
+          photoCount: album.file_count || 0, // 兼容字段
+          totalSize: album.total_size || 0,
+          createdAt: album.created_at,
+          updatedAt: album.updated_at,
+          privacy: 'public' // 默认公开
+        }))
+
+        return { 
+          success: true, 
+          data: { 
+            albums, 
+            total: albums.length, 
+            hasMore: false 
+          } 
+        }
+      } else {
+        return { success: false, message: data.error || '获取相册列表失败' }
+      }
+    } catch (error) {
+      console.error('获取相册列表失败:', error)
+      return { success: false, message: '网络错误，获取相册列表失败' }
+    }
+  }
+  
+  // 更新相册信息
+  async updateAlbum(albumId, albumData) {
+    try {
+      if (!this.isLoggedIn()) {
+        return { success: false, message: '请先登录' }
+      }
+
+      const response = await fetch(`${API_BASE_URL}/albums/${albumId}`, {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(albumData)
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        return { 
+          success: true, 
+          message: data.message || '相册更新成功' 
+        }
+      } else {
+        return { success: false, message: data.error || '更新相册失败' }
+      }
+    } catch (error) {
+      console.error('更新相册失败:', error)
+      return { success: false, message: '网络错误，更新相册失败' }
+    }
+  }
+
+  // 删除相册
+  async deleteAlbum(albumId) {
+    try {
+      if (!this.isLoggedIn()) {
+        return { success: false, message: '请先登录' }
+      }
+
+      const response = await fetch(`${API_BASE_URL}/albums/${albumId}`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders()
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        return { 
+          success: true, 
+          message: data.message || '相册删除成功' 
+        }
+      } else {
+        return { success: false, message: data.error || '删除相册失败' }
+      }
+    } catch (error) {
+      console.error('删除相册失败:', error)
+      return { success: false, message: '网络错误，删除相册失败' }
+    }
   }
   
   // 获取单个相册详情
   async getAlbumById(id) {
     try {
-      const response = await fetch(`${API_BASE_URL}/photos/image/${id}`)
-      if (response.ok) {
-        return { 
-          success: true, 
-          data: {
-            id,
-            title: '照片详情',
-            images: [{
-              id,
-              url: `${API_BASE_URL}/photos/image/${id}`,
-              title: '照片'
-            }]
-          }
+      const response = await fetch(`${API_BASE_URL}/albums/${id}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders()
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        const album = {
+          id: data.data.id,
+          name: data.data.name,
+          title: data.data.name, // 兼容字段
+          description: data.data.description || '',
+          cover: data.data.cover_url ? `${API_BASE_URL.replace('/api', '')}${data.data.cover_url}` : null,
+          fileCount: data.data.file_count || 0,
+          photoCount: data.data.file_count || 0, // 兼容字段
+          totalSize: data.data.total_size || 0,
+          createdAt: data.data.created_at,
+          updatedAt: data.data.updated_at
         }
+
+        return { success: true, data: album }
       } else {
-        return { success: false, message: '相册不存在' }
+        return { success: false, message: data.error || '相册不存在' }
       }
     } catch (error) {
       console.error('获取相册详情失败:', error)
       return { success: false, message: '获取相册详情失败' }
+    }
+  }
+
+  // 获取相册中的文件
+  async getAlbumFiles(albumId, params = {}) {
+    try {
+      const { page = 1, limit = 20 } = params
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        albumId: albumId === 'default' ? 'default' : albumId.toString()
+      })
+
+      const response = await fetch(`${API_BASE_URL}/files?${queryParams}`, {
+        method: 'GET',
+        headers: this.getAuthHeaders()
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        return { success: true, data: data }
+      } else {
+        return { success: false, message: data.error || '获取相册文件失败' }
+      }
+    } catch (error) {
+      console.error('获取相册文件失败:', error)
+      return { success: false, message: '网络错误，获取相册文件失败' }
     }
   }
 

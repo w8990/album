@@ -308,8 +308,8 @@ const fetchFavoritePhotos = async () => {
       favoritePhotos.value = result.data.favorites.map(fav => ({
         id: fav.post.id,
         title: fav.post.title || fav.post.content || '未命名照片',
-        thumbnail: fav.post.images?.[0] || 'https://picsum.photos/300/400?random=' + fav.post.id,
-        url: fav.post.images?.[0] || 'https://picsum.photos/400/600?random=' + fav.post.id,
+        thumbnail: fav.post.images?.[0] || null,
+        url: fav.post.images?.[0] || null,
         height: 250 + Math.random() * 150, // 随机高度用于瀑布流
         author: fav.post.author?.nickname || fav.post.author?.username || '匿名用户',
         views: fav.post.views || 0,
@@ -337,7 +337,7 @@ const fetchFavoriteAlbums = async () => {
       favoriteAlbums.value = result.data.favorites.map(fav => ({
         id: fav.post.id,
         title: fav.post.title || fav.post.content || '未命名相册',
-        cover: fav.post.images?.[0] || 'https://picsum.photos/400/300?random=' + fav.post.id,
+        cover: fav.post.images?.[0] || null,
         author: fav.post.author?.nickname || fav.post.author?.username || '匿名用户',
         photoCount: fav.post.images?.length || 0,
         views: fav.post.views || 0,
@@ -366,7 +366,7 @@ const fetchFollowingUsers = async () => {
         id: follow.following.id,
         username: follow.following.username,
         nickname: follow.following.nickname || follow.following.username,
-        avatar: follow.following.avatar || 'https://picsum.photos/100/100?random=' + follow.following.id,
+        avatar: follow.following.avatar || null,
         bio: follow.following.bio || '这个人很懒，什么都没写~',
         albumCount: follow.following.albumCount || 0,
         followersCount: follow.following.followersCount || 0,

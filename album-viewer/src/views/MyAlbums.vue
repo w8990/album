@@ -93,7 +93,11 @@
             @click="handleAlbumClick(album)"
           >
             <div class="album-cover">
-              <img :src="album.cover" :alt="album.title" />
+              <img v-if="album.cover" :src="album.cover" :alt="album.title" />
+              <div v-else class="default-cover">
+                <el-icon size="64" class="cover-placeholder"><PictureRounded /></el-icon>
+                <span class="cover-text">暂无封面</span>
+              </div>
               <div class="album-overlay">
                 <div class="overlay-content">
                   <span class="photo-count">{{ album.photoCount }} 张照片</span>
@@ -144,7 +148,10 @@
             <el-table-column width="120">
               <template #default="{ row }">
                 <div class="table-cover">
-                  <img :src="row.cover" :alt="row.title" />
+                  <img v-if="row.cover" :src="row.cover" :alt="row.title" />
+                  <div v-else class="table-default-cover">
+                    <el-icon><PictureRounded /></el-icon>
+                  </div>
                 </div>
               </template>
             </el-table-column>
@@ -222,7 +229,7 @@
     <el-dialog 
       v-model="showCreateDialog" 
       title="创建新相册"
-      width="600px"
+      width="500px"
       :before-close="handleCloseCreate"
     >
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="80px">
@@ -236,35 +243,9 @@
             type="textarea" 
             :rows="3"
             placeholder="描述一下这个相册..."
-            maxlength="500"
+            maxlength="200"
             show-word-limit
           />
-        </el-form-item>
-        
-        <el-form-item label="隐私设置">
-          <el-radio-group v-model="createForm.privacy">
-            <el-radio value="public">
-              <el-icon><Unlock /></el-icon>
-              公开 - 所有人都可以查看
-            </el-radio>
-            <el-radio value="private">
-              <el-icon><Lock /></el-icon>
-              私密 - 只有我可以查看
-            </el-radio>
-          </el-radio-group>
-        </el-form-item>
-        
-        <el-form-item label="相册封面">
-          <el-upload
-            v-model:file-list="coverFileList"
-            :auto-upload="false"
-            :limit="1"
-            list-type="picture-card"
-            accept="image/*"
-            @change="handleCoverChange"
-          >
-            <el-icon><Plus /></el-icon>
-          </el-upload>
         </el-form-item>
       </el-form>
       
@@ -307,15 +288,12 @@ const showCreateDialog = ref(false)
 const creating = ref(false)
 const loading = ref(false)
 const createFormRef = ref()
-const coverFileList = ref([])
 const userStore = useUserStore()
 
 // 创建表单
 const createForm = reactive({
   title: '',
-  description: '',
-  privacy: 'public',
-  images: []
+  description: ''
 })
 
 // 表单验证规则
@@ -341,40 +319,29 @@ const fetchAlbums = async () => {
       return
     }
     
-    // 获取所有社交动态，然后过滤当前用户的
-    const result = await albumService.getSocialPosts({ 
-      page: 1, 
-      limit: 100  // 获取更多数据
-    })
+    // 使用真正的相册API获取相册列表
+    const result = await albumService.getAlbums()
     
     if (result.success) {
-      // 过滤当前用户的posts
-      const userPosts = result.data.posts.filter(post => {
-        return post.authorId == userStore.user?.id
-      })
+      // 直接使用相册数据，转换为页面需要的格式
+      albums.value = result.data.albums.map(album => ({
+        id: album.id,
+        title: album.name,
+        description: album.description || '',
+        cover: album.cover || null, // 不使用随机图片，使用null表示无封面
+        photoCount: album.fileCount || 0,
+        views: 0, // 暂时设为0
+        likes: 0, // 暂时设为0
+        privacy: 'public', // 默认公开
+        createdAt: album.createdAt,
+        updatedAt: album.updatedAt || album.createdAt
+      }))
       
-      // 转换API数据格式为相册格式
-      albums.value = userPosts.map(post => {
-        // 提取文件信息
-        const firstImage = post.images?.[0]
-        const fileName = firstImage?.title || firstImage?.description || '未命名文件'
-        
-        return {
-          id: post.id,
-          title: post.content || fileName || `照片 ${post.id}`,
-          description: post.content || '',
-          cover: firstImage?.url || 'https://picsum.photos/400/300?random=' + post.id,
-          photoCount: post.images?.length || 1,
-          views: post.views || 0,
-          likes: post.likes || 0,
-          privacy: 'public', // 默认公开
-          createdAt: post.createdAt,
-          updatedAt: post.createdAt
-        }
-      })
+      // 按创建时间倒序排列
+      albums.value.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       
     } else {
-      console.log('API调用失败:', result)
+      console.error('获取相册失败:', result)
       ElMessage.error(result.message || '获取相册失败')
       albums.value = []
     }
@@ -453,7 +420,7 @@ const handleEditAlbum = (album) => {
 // 删除相册
 const handleDeleteAlbum = (album) => {
   ElMessageBox.confirm(
-    `确定要删除相册"${album.title}"吗？此操作不可恢复。`,
+    `确定要删除相册"${album.title}"吗？其中的文件将移动到默认相册。`,
     '确认删除',
     {
       confirmButtonText: '确定删除',
@@ -462,8 +429,8 @@ const handleDeleteAlbum = (album) => {
     }
   ).then(async () => {
     try {
-      // 调用API删除相册
-      const result = await albumService.deletePost(album.id)
+      // 调用相册API删除相册
+      const result = await albumService.deleteAlbum(album.id)
       if (result.success) {
         // 从列表中移除
         const index = albums.value.findIndex(a => a.id === album.id)
@@ -483,21 +450,10 @@ const handleDeleteAlbum = (album) => {
   })
 }
 
-// 处理封面上传变化
-const handleCoverChange = (file, fileList) => {
-  createForm.images = fileList.map(f => f.raw).filter(Boolean)
-}
-
 // 创建相册
 const handleCreateAlbum = async () => {
   try {
     await createFormRef.value.validate()
-    
-    // 检查是否有图片文件
-    if (!createForm.images || createForm.images.length === 0) {
-      ElMessage.error('请选择要上传的图片')
-      return
-    }
     
     // 检查用户是否已登录
     if (!userStore.isAuthenticated) {
@@ -507,17 +463,11 @@ const handleCreateAlbum = async () => {
     
     creating.value = true
     
-    // 准备上传数据
-    const postData = {
-      content: createForm.title,
-      images: createForm.images.map(file => ({ raw: file })), // 转换为预期格式
-      tags: ['相册'], // 添加标签
-      location: '',
-      privacy_level: createForm.privacy === 'private' ? 'private' : 'public'
-    }
-
-    // 调用API创建相册（实际是上传文件）
-    const result = await albumService.createPost(postData)
+    // 调用相册API创建相册
+    const result = await albumService.createAlbum({
+      name: createForm.title,
+      description: createForm.description
+    })
     
     if (result.success) {
       ElMessage.success('相册创建成功')
@@ -544,9 +494,6 @@ const handleCloseCreate = () => {
   showCreateDialog.value = false
   createForm.title = ''
   createForm.description = ''
-  createForm.privacy = 'public'
-  createForm.images = []
-  coverFileList.value = []
   createFormRef.value?.resetFields()
 }
 
@@ -691,6 +638,26 @@ onMounted(async () => {
   transition: transform 0.5s ease;
 }
 
+.default-cover {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+  color: #8b9dc3;
+}
+
+.cover-placeholder {
+  margin-bottom: 12px;
+}
+
+.cover-text {
+  font-size: 16px;
+  font-weight: 500;
+}
+
 .album-card:hover .album-cover img {
   transform: scale(1.1);
 }
@@ -796,6 +763,17 @@ onMounted(async () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.table-default-cover {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+  color: #8b9dc3;
+  border-radius: 4px;
 }
 
 .album-title-cell {

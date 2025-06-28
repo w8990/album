@@ -50,11 +50,11 @@ const routes = [
         }
       },
       {
-        path: 'profile',
+        path: 'profile/:userId?',
         name: 'Profile',
         component: Profile,
         meta: { 
-          requiresAuth: true,
+          requiresAuth: false,
           title: '个人资料'
         }
       },
