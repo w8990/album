@@ -152,4 +152,3 @@
   max-height: 300px; /* Example max height */
 }
 </style> 
-</style> 
