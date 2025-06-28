@@ -41,19 +41,6 @@
           </el-button>
         </div>
       </div>
-      <div class="hero-illustration">
-        <div class="floating-cards">
-          <div class="card card-1">
-            <el-icon><Picture /></el-icon>
-          </div>
-          <div class="card card-2">
-            <el-icon><VideoPlay /></el-icon>
-          </div>
-          <div class="card card-3">
-            <el-icon><Document /></el-icon>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- 文件管理区域 -->
@@ -811,11 +798,12 @@ onMounted(() => {
 .hero-section {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  min-height: 80vh;
-  padding: 4rem 2rem;
+  justify-content: center;
+  min-height: 30vh;
+  padding: 1.5rem 2rem;
   color: white;
   position: relative;
+  text-align: center;
 }
 
 .hero-section::before {
@@ -830,19 +818,18 @@ onMounted(() => {
 }
 
 .hero-content {
-  flex: 1;
-  max-width: 600px;
+  max-width: 800px;
   z-index: 2;
 }
 
 .hero-text {
-  margin-bottom: 3rem;
+  margin-bottom: 1.5rem;
 }
 
 .hero-title {
-  font-size: 3.5rem;
+  font-size: 2.2rem;
   font-weight: 700;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.8rem;
   line-height: 1.2;
 }
 
@@ -855,16 +842,16 @@ onMounted(() => {
 }
 
 .hero-subtitle {
-  font-size: 1.3rem;
-  margin-bottom: 2rem;
+  font-size: 1rem;
+  margin-bottom: 1rem;
   opacity: 0.9;
   line-height: 1.6;
 }
 
 .hero-stats {
   display: flex;
-  gap: 3rem;
-  margin-bottom: 3rem;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
 .stat-item {
@@ -873,27 +860,27 @@ onMounted(() => {
 
 .stat-number {
   display: block;
-  font-size: 2.5rem;
+  font-size: 1.6rem;
   font-weight: 700;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.2rem;
   color: #fff;
 }
 
 .stat-label {
-  font-size: 1rem;
+  font-size: 0.8rem;
   opacity: 0.8;
   color: #e0e7ff;
 }
 
 .hero-actions {
   display: flex;
-  gap: 1.5rem;
+  gap: 0.8rem;
   flex-wrap: wrap;
 }
 
 .action-button {
-  padding: 1rem 2rem;
-  font-size: 1.1rem;
+  padding: 0.6rem 1.2rem;
+  font-size: 0.9rem;
   border-radius: 50px;
   transition: all 0.3s ease;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
@@ -921,60 +908,6 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.2);
   transform: translateY(-3px);
   box-shadow: 0 8px 25px rgba(255, 255, 255, 0.2);
-}
-
-/* Hero插图区域 */
-.hero-illustration {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: relative;
-}
-
-.floating-cards {
-  position: relative;
-  width: 300px;
-  height: 300px;
-}
-
-.card {
-  position: absolute;
-  width: 80px;
-  height: 80px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  color: white;
-  animation: float 6s ease-in-out infinite;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.card-1 {
-  top: 20px;
-  left: 50px;
-  animation-delay: 0s;
-}
-
-.card-2 {
-  top: 120px;
-  right: 30px;
-  animation-delay: 2s;
-}
-
-.card-3 {
-  bottom: 40px;
-  left: 20px;
-  animation-delay: 4s;
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-20px) rotate(5deg); }
 }
 
 /* 文件管理区域 */
@@ -1517,13 +1450,7 @@ onMounted(() => {
 /* 响应式设计 */
 @media (max-width: 1200px) {
   .hero-section {
-    flex-direction: column;
-    text-align: center;
-    padding: 3rem 1rem;
-  }
-
-  .hero-illustration {
-    margin-top: 2rem;
+    padding: 1.5rem 1rem;
   }
 
   .section-header {
@@ -1541,17 +1468,22 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .hero-section {
+    padding: 1rem;
+  }
+
   .hero-title {
-    font-size: 2.5rem;
+    font-size: 1.8rem;
   }
 
   .hero-subtitle {
-    font-size: 1.1rem;
+    font-size: 0.9rem;
   }
 
   .hero-stats {
-    flex-direction: column;
+    flex-direction: row;
     gap: 1rem;
+    justify-content: center;
   }
 
   .hero-actions {
@@ -1561,11 +1493,11 @@ onMounted(() => {
 
   .action-button {
     width: 100%;
-    max-width: 300px;
+    max-width: 250px;
   }
 
   .files-section {
-    margin: -2rem 1rem 1rem;
+    margin: -1rem 1rem 1rem;
     padding: 1rem;
   }
 
@@ -1594,12 +1526,20 @@ onMounted(() => {
 }
 
 @media (max-width: 480px) {
+  .hero-section {
+    padding: 0.8rem;
+  }
+
   .hero-title {
-    font-size: 2rem;
+    font-size: 1.5rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.85rem;
   }
 
   .files-section {
-    margin: -1rem 0.5rem 0.5rem;
+    margin: -0.5rem 0.5rem 0.5rem;
     padding: 1rem;
   }
 
