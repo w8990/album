@@ -169,6 +169,44 @@ class AlbumService {
     }
   }
 
+  // 上传用户头像
+  async uploadAvatar(file) {
+    try {
+      if (!this.token) {
+        return { success: false, message: '请先登录' }
+      }
+
+      // 创建FormData
+      const formData = new FormData()
+      formData.append('avatar', file)
+
+      const response = await fetch(`${API_BASE_URL}/auth/upload-avatar`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.token}`
+        },
+        body: formData
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // 更新本地用户信息
+        this.user = data.data.user
+        return { 
+          success: true, 
+          data: data.data, 
+          message: data.message || '头像上传成功' 
+        }
+      } else {
+        return { success: false, message: data.error || '头像上传失败' }
+      }
+    } catch (error) {
+      console.error('上传头像失败:', error)
+      return { success: false, message: '网络错误，头像上传失败' }
+    }
+  }
+
   // 检查是否已登录
   isLoggedIn() {
     return !!this.token && !!this.user

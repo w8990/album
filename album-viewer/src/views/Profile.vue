@@ -14,6 +14,7 @@
               :before-upload="beforeAvatarUpload"
               :on-change="handleAvatarChange"
               :auto-upload="false"
+              :disabled="avatarUploading"
             >
               <el-avatar 
                 :size="100" 
@@ -21,8 +22,10 @@
                 :icon="UserFilled"
                 class="profile-avatar"
               />
-              <div class="avatar-overlay">
-                <el-icon class="camera-icon"><Camera /></el-icon>
+              <div class="avatar-overlay" :class="{ 'uploading': avatarUploading }">
+                <el-icon v-if="!avatarUploading" class="camera-icon"><Camera /></el-icon>
+                <el-icon v-else class="loading-icon"><Loading /></el-icon>
+                <span v-if="avatarUploading" class="upload-text">上传中...</span>
               </div>
             </el-upload>
             <div v-else class="avatar-container">
@@ -412,7 +415,8 @@ import {
   View,
   Close,
   Histogram, 
-  TrendCharts
+  TrendCharts,
+  Loading
 } from '@element-plus/icons-vue'
 import albumService from '../api/albumService.js'
 
@@ -429,6 +433,7 @@ const albumsLoading = ref(false)
 const activitiesLoading = ref(false)
 const followersLoading = ref(false)
 const followingLoading = ref(false)
+const avatarUploading = ref(false)
 
 const profileUser = ref(null)
 const albums = ref([])
@@ -510,19 +515,24 @@ const fetchUserProfile = async () => {
       // 获取当前用户信息
       const result = await albumService.getCurrentUser()
       if (result.success) {
+        const user = result.data.user
         profileUser.value = {
-          ...result.data.user,
+          ...user,
+          // 处理头像URL，如果是相对路径则添加服务器地址
+          avatar: user.avatar_url ? 
+            (user.avatar_url.startsWith('http') ? user.avatar_url : `http://localhost:3000${user.avatar_url}`) 
+            : null,
           isOnline: true, // 自己总是在线
-          isVerified: result.data.user.isVerified || false,
-          isVip: result.data.user.isVip || false
+          isVerified: user.isVerified || false,
+          isVip: user.isVip || false
         }
         
         // 填充编辑表单
-        profileForm.nickname = result.data.user.nickname || result.data.user.display_name || ''
-        profileForm.bio = result.data.user.bio || ''
-        profileForm.location = result.data.user.location || ''
-        profileForm.website = result.data.user.website || ''
-        profileForm.tags = result.data.user.tags || []
+        profileForm.nickname = user.nickname || user.display_name || ''
+        profileForm.bio = user.bio || ''
+        profileForm.location = user.location || ''
+        profileForm.website = user.website || ''
+        profileForm.tags = user.tags || []
       } else {
         ElMessage.error('获取用户信息失败')
       }
@@ -530,11 +540,16 @@ const fetchUserProfile = async () => {
       // 获取其他用户资料
       const result = await albumService.getUserProfile(targetUserId.value)
       if (result.success) {
+        const user = result.data.user
         profileUser.value = {
-          ...result.data.user,
+          ...user,
+          // 处理头像URL
+          avatar: user.avatar_url ? 
+            (user.avatar_url.startsWith('http') ? user.avatar_url : `http://localhost:3000${user.avatar_url}`) 
+            : null,
           isOnline: Math.random() > 0.5, // 随机在线状态
-          isVerified: result.data.user.isVerified || false,
-          isVip: result.data.user.isVip || false
+          isVerified: user.isVerified || false,
+          isVip: user.isVip || false
         }
       } else {
         ElMessage.error('获取用户资料失败')
@@ -644,11 +659,11 @@ const fetchFollowing = async () => {
 
 // 头像上传
 const beforeAvatarUpload = (file) => {
-  const isJPG = file.type === 'image/jpeg' || file.type === 'image/png'
+  const isJPG = file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/gif' || file.type === 'image/webp'
   const isLt2M = file.size / 1024 / 1024 < 2
 
   if (!isJPG) {
-    ElMessage.error('头像图片只能是 JPG/PNG 格式!')
+    ElMessage.error('头像图片只能是 JPG/PNG/GIF/WebP 格式!')
     return false
   }
   if (!isLt2M) {
@@ -658,8 +673,34 @@ const beforeAvatarUpload = (file) => {
   return true
 }
 
-const handleAvatarChange = (file) => {
-  ElMessage.info('头像上传功能开发中...')
+const handleAvatarChange = async (file) => {
+  try {
+    // 先进行文件验证
+    if (!beforeAvatarUpload(file.raw)) {
+      return
+    }
+
+    // 设置上传状态
+    avatarUploading.value = true
+
+    // 调用API上传头像
+    const result = await albumService.uploadAvatar(file.raw)
+
+    if (result.success) {
+      // 更新头像显示
+      profileUser.value.avatar = `http://localhost:3000${result.data.avatar_url}`
+      profileUser.value.avatar_url = result.data.avatar_url
+      
+      ElMessage.success(result.message || '头像上传成功')
+    } else {
+      ElMessage.error(result.message || '头像上传失败')
+    }
+  } catch (error) {
+    console.error('头像上传失败:', error)
+    ElMessage.error('头像上传失败')
+  } finally {
+    avatarUploading.value = false
+  }
 }
 
 // 标签管理
@@ -912,6 +953,7 @@ onMounted(async () => {
   bottom: 0;
   background: rgba(0, 0, 0, 0.6);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   opacity: 0;
@@ -920,12 +962,36 @@ onMounted(async () => {
   color: white;
 }
 
-.avatar-uploader:hover .avatar-overlay {
+.avatar-overlay.uploading {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.avatar-uploader:hover .avatar-overlay:not(.uploading) {
   opacity: 1;
 }
 
 .camera-icon {
   font-size: 20px;
+}
+
+.loading-icon {
+  font-size: 20px;
+  animation: rotate 1s linear infinite;
+}
+
+.upload-text {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .status-indicator {

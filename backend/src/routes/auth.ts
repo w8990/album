@@ -13,6 +13,7 @@ import {
 } from '../db';
 import { authenticateToken } from '../middleware/auth';
 import { generateSessionToken } from '../utils/session';
+import { upload } from '../middleware/upload';
 
 const router = express.Router();
 
@@ -319,6 +320,79 @@ router.put('/me', authenticateToken, async (req, res) => {
     res.status(500).json({ 
       error: '更新用户信息失败',
       code: 'UPDATE_USER_ERROR'
+    });
+  }
+});
+
+// 上传用户头像
+router.post('/upload-avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        error: '没有上传头像文件',
+        code: 'NO_FILE_UPLOADED'
+      });
+    }
+
+    // 检查文件类型
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ 
+        error: '头像只支持 JPG、PNG、GIF、WebP 格式',
+        code: 'INVALID_FILE_TYPE'
+      });
+    }
+
+    // 检查文件大小 (2MB)
+    if (req.file.size > 2 * 1024 * 1024) {
+      return res.status(400).json({ 
+        error: '头像文件大小不能超过 2MB',
+        code: 'FILE_TOO_LARGE'
+      });
+    }
+
+    // 构建头像URL
+    const avatarUrl = `/uploads/${req.file.filename}`;
+
+    // 更新用户头像
+    const success = await updateUser(userId, {
+      avatar_url: avatarUrl
+    });
+
+    if (!success) {
+      return res.status(500).json({ 
+        error: '更新头像失败',
+        code: 'UPDATE_AVATAR_ERROR'
+      });
+    }
+
+    // 获取更新后的用户信息
+    const user = await getUserById(userId);
+
+    res.json({ 
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url,
+          bio: user.bio,
+          location: user.location,
+          website: user.website
+        },
+        avatar_url: avatarUrl
+      },
+      message: '头像上传成功'
+    });
+  } catch (error) {
+    console.error('上传头像失败:', error);
+    res.status(500).json({ 
+      error: '上传头像失败',
+      code: 'UPLOAD_AVATAR_ERROR'
     });
   }
 });
