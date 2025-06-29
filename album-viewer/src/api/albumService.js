@@ -624,7 +624,8 @@ class AlbumService {
         headers: this.getAuthHeaders(),
         body: JSON.stringify({
           name: albumData.name.trim(),
-          description: albumData.description?.trim() || ''
+          description: albumData.description?.trim() || '',
+          privacy: albumData.privacy || 'public'
         })
       })
 
@@ -669,7 +670,7 @@ class AlbumService {
           totalSize: album.total_size || 0,
           createdAt: album.created_at,
           updatedAt: album.updated_at,
-          privacy: 'public' // 默认公开
+          privacy: album.privacy || 'public' // 从后端获取或默认公开
         }))
 
         return { 
@@ -767,7 +768,8 @@ class AlbumService {
           photoCount: data.data.file_count || 0, // 兼容字段
           totalSize: data.data.total_size || 0,
           createdAt: data.data.created_at,
-          updatedAt: data.data.updated_at
+          updatedAt: data.data.updated_at,
+          privacy: data.data.privacy || 'public'
         }
 
         return { success: true, data: album }

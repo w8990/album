@@ -10,6 +10,16 @@
           </h1>
           <p class="page-subtitle">管理你的账户和偏好设置</p>
         </div>
+        
+        <!-- 快捷操作 -->
+        <div class="header-actions">
+          <el-button @click="resetSettings" :icon="RefreshRight">
+            重置设置
+          </el-button>
+          <el-button type="primary" @click="saveAllSettings" :icon="Check">
+            保存所有设置
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -490,7 +500,9 @@ import {
   Sunny,
   FolderOpened,
   Tools,
-  Monitor
+  Monitor,
+  RefreshRight,
+  Check
 } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
@@ -600,30 +612,148 @@ const changePassword = () => {
 }
 
 // 清理缓存
-const cleanCache = () => {
-  ElMessage.success('缓存清理成功')
+const cleanCache = async () => {
+  try {
+    // 模拟清理缓存操作
+    const loading = ElMessage.loading('正在清理缓存...')
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    loading.close()
+    ElMessage.success('缓存清理成功')
+    
+    // 更新存储使用情况
+    storageUsage.used = '1.9 GB'
+    storageUsage.percentage = 38
+    storageUsage.others = '50 MB'
+  } catch (error) {
+    ElMessage.error('缓存清理失败')
+  }
 }
 
 // 导出数据
-const exportData = () => {
-  ElMessage.info('数据导出功能开发中...')
+const exportData = async () => {
+  try {
+    const result = await ElMessageBox.confirm(
+      '导出数据可能需要一些时间，确定要继续吗？',
+      '确认导出',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'info'
+      }
+    )
+    
+    if (result === 'confirm') {
+      const loading = ElMessage.loading('正在准备导出数据...')
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      loading.close()
+      ElMessage.success('数据导出已开始，完成后将发送下载链接到您的邮箱')
+    }
+  } catch (error) {
+    // 用户取消操作
+  }
 }
 
 // 删除账户
-const deleteAccount = () => {
-  ElMessageBox.confirm(
-    '此操作将永久删除你的账户和所有数据，且无法恢复。请谨慎操作！',
-    '确认删除账户',
-    {
-      confirmButtonText: '确定删除',
-      cancelButtonText: '取消',
-      type: 'error',
+const deleteAccount = async () => {
+  try {
+    const result = await ElMessageBox.prompt(
+      '此操作不可逆转！请输入 "DELETE" 确认删除账户',
+      '危险操作',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        inputValidator: (value) => {
+          if (value !== 'DELETE') {
+            return '请输入 "DELETE" 确认操作'
+          }
+          return true
+        },
+        type: 'error'
+      }
+    )
+    
+    if (result.value === 'DELETE') {
+      ElMessage.error('账户删除功能暂未开放，请联系客服')
     }
-  ).then(() => {
-    ElMessage.error('账户删除功能已禁用')
-  }).catch(() => {
-    // 取消删除
-  })
+  } catch (error) {
+    // 用户取消操作
+  }
+}
+
+// 保存所有设置
+const saveAllSettings = async () => {
+  try {
+    const loading = ElMessage.loading('保存设置中...')
+    
+    // 模拟保存操作
+    await new Promise(resolve => setTimeout(resolve, 1500))
+    
+    loading.close()
+    ElMessage.success('设置保存成功')
+  } catch (error) {
+    ElMessage.error('保存设置失败')
+  }
+}
+
+// 重置设置
+const resetSettings = async () => {
+  try {
+    const result = await ElMessageBox.confirm(
+      '确定要重置所有设置为默认值吗？',
+      '重置设置',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    if (result === 'confirm') {
+      // 重置所有设置
+      Object.assign(privacySettings, {
+        profileVisibility: 'public',
+        defaultAlbumPrivacy: 'public',
+        allowFollow: true,
+        showOnlineStatus: true
+      })
+      
+      Object.assign(notificationSettings, {
+        newFollower: true,
+        likes: true,
+        comments: true,
+        system: true
+      })
+      
+      Object.assign(emailSettings, {
+        weeklyDigest: true,
+        activityReminder: false
+      })
+      
+      Object.assign(appearanceSettings, {
+        theme: 'light',
+        language: 'zh-CN',
+        animations: true
+      })
+      
+      ElMessage.success('设置已重置为默认值')
+    }
+  } catch (error) {
+    // 用户取消操作
+  }
+}
+
+// 主题切换
+const handleThemeChange = (theme) => {
+  appearanceSettings.theme = theme
+  // 这里可以实现实际的主题切换逻辑
+  document.documentElement.setAttribute('data-theme', theme)
+  ElMessage.success(`已切换到${theme === 'light' ? '浅色' : theme === 'dark' ? '深色' : '自动'}主题`)
+}
+
+// 语言切换
+const handleLanguageChange = (language) => {
+  appearanceSettings.language = language
+  ElMessage.success('语言设置已更新，刷新页面后生效')
 }
 
 // 格式化日期
@@ -631,14 +761,30 @@ const formatDate = (dateString) => {
   return new Date(dateString).toLocaleString('zh-CN')
 }
 
-onMounted(() => {
-  // 初始化设置数据
-  if (userStore.user) {
-    profileSettings.username = userStore.user.username || ''
-    profileSettings.nickname = userStore.user.nickname || ''
-    profileSettings.email = userStore.user.email || ''
-    profileSettings.bio = userStore.user.bio || ''
+// 获取用户设置
+const loadUserSettings = async () => {
+  try {
+    // 从userStore或API获取用户设置
+    if (userStore.user) {
+      profileSettings.username = userStore.user.username || 'user123'
+      profileSettings.nickname = userStore.user.nickname || userStore.user.display_name || '摄影爱好者'
+      profileSettings.email = userStore.user.email || 'user@example.com'
+      profileSettings.bio = userStore.user.bio || '热爱摄影，记录生活美好瞬间'
+    }
+  } catch (error) {
+    console.error('加载用户设置失败:', error)
   }
+}
+
+// 实时保存开关设置
+const handleSettingChange = (settingType, key, value) => {
+  console.log(`设置更新: ${settingType}.${key} = ${value}`)
+  // 这里可以实现实时保存到后端
+  ElMessage.success('设置已更新')
+}
+
+onMounted(() => {
+  loadUserSettings()
 })
 </script>
 

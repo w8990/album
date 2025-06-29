@@ -247,12 +247,90 @@
             show-word-limit
           />
         </el-form-item>
+
+        <el-form-item label="隐私设置">
+          <el-radio-group v-model="createForm.privacy">
+            <el-radio value="public">
+              <el-icon><Unlock /></el-icon>
+              公开
+            </el-radio>
+            <el-radio value="private">
+              <el-icon><Lock /></el-icon>
+              私密
+            </el-radio>
+          </el-radio-group>
+          <div class="privacy-hint">
+            <p v-if="createForm.privacy === 'public'" class="hint-text">
+              <el-icon class="hint-icon"><InfoFilled /></el-icon>
+              公开相册可以被其他用户浏览和搜索
+            </p>
+            <p v-else class="hint-text">
+              <el-icon class="hint-icon"><InfoFilled /></el-icon>
+              私密相册只有您自己可以查看
+            </p>
+          </div>
+        </el-form-item>
       </el-form>
       
       <template #footer>
         <el-button @click="handleCloseCreate">取消</el-button>
         <el-button type="primary" @click="handleCreateAlbum" :loading="creating">
           创建相册
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑相册对话框 -->
+    <el-dialog 
+      v-model="showEditDialog" 
+      title="编辑相册"
+      width="500px"
+      :before-close="handleCloseEdit"
+    >
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="80px">
+        <el-form-item label="相册名称" prop="title">
+          <el-input v-model="editForm.title" placeholder="给你的相册起个名字" />
+        </el-form-item>
+        
+        <el-form-item label="相册描述">
+          <el-input 
+            v-model="editForm.description" 
+            type="textarea" 
+            :rows="3"
+            placeholder="描述一下这个相册..."
+            maxlength="200"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item label="隐私设置">
+          <el-radio-group v-model="editForm.privacy">
+            <el-radio value="public">
+              <el-icon><Unlock /></el-icon>
+              公开
+            </el-radio>
+            <el-radio value="private">
+              <el-icon><Lock /></el-icon>
+              私密
+            </el-radio>
+          </el-radio-group>
+          <div class="privacy-hint">
+            <p v-if="editForm.privacy === 'public'" class="hint-text">
+              <el-icon class="hint-icon"><InfoFilled /></el-icon>
+              公开相册可以被其他用户浏览和搜索
+            </p>
+            <p v-else class="hint-text">
+              <el-icon class="hint-icon"><InfoFilled /></el-icon>
+              私密相册只有您自己可以查看
+            </p>
+          </div>
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <el-button @click="handleCloseEdit">取消</el-button>
+        <el-button type="primary" @click="handleUpdateAlbum" :loading="editing">
+          保存修改
         </el-button>
       </template>
     </el-dialog>
@@ -274,7 +352,8 @@ import {
   Lock,
   Unlock,
   Edit,
-  Delete
+  Delete,
+  InfoFilled
 } from '@element-plus/icons-vue'
 import albumService from '../api/albumService.js'
 import { useUserStore } from '../stores/user.js'
@@ -285,15 +364,19 @@ const searchQuery = ref('')
 const sortBy = ref('latest')
 const filterBy = ref('all')
 const showCreateDialog = ref(false)
+const showEditDialog = ref(false)
 const creating = ref(false)
+const editing = ref(false)
 const loading = ref(false)
 const createFormRef = ref()
+const editFormRef = ref()
 const userStore = useUserStore()
 
 // 创建表单
 const createForm = reactive({
   title: '',
-  description: ''
+  description: '',
+  privacy: 'public'
 })
 
 // 表单验证规则
@@ -303,6 +386,24 @@ const createRules = {
     { min: 1, max: 50, message: '相册名称长度在 1 到 50 个字符', trigger: 'blur' }
   ]
 }
+
+// 编辑表单
+const editForm = reactive({
+  title: '',
+  description: '',
+  privacy: 'public'
+})
+
+// 编辑表单验证规则
+const editRules = {
+  title: [
+    { required: true, message: '请输入相册名称', trigger: 'blur' },
+    { min: 1, max: 50, message: '相册名称长度在 1 到 50 个字符', trigger: 'blur' }
+  ]
+}
+
+// 当前编辑的相册
+const currentEditAlbum = ref(null)
 
 // 相册数据 - 从API获取
 const albums = ref([])
@@ -414,7 +515,11 @@ const handleAlbumClick = (album) => {
 
 // 编辑相册
 const handleEditAlbum = (album) => {
-  ElMessage.info('编辑相册功能开发中...')
+  currentEditAlbum.value = album
+  showEditDialog.value = true
+  editForm.title = album.title
+  editForm.description = album.description
+  editForm.privacy = album.privacy
 }
 
 // 删除相册
@@ -466,7 +571,8 @@ const handleCreateAlbum = async () => {
     // 调用相册API创建相册
     const result = await albumService.createAlbum({
       name: createForm.title,
-      description: createForm.description
+      description: createForm.description,
+      privacy: createForm.privacy
     })
     
     if (result.success) {
@@ -494,7 +600,63 @@ const handleCloseCreate = () => {
   showCreateDialog.value = false
   createForm.title = ''
   createForm.description = ''
+  createForm.privacy = 'public'
   createFormRef.value?.resetFields()
+}
+
+// 更新相册
+const handleUpdateAlbum = async () => {
+  try {
+    await editFormRef.value.validate()
+    
+    // 检查用户是否已登录
+    if (!userStore.isAuthenticated) {
+      ElMessage.error('请先登录')
+      return
+    }
+    
+    if (!currentEditAlbum.value) {
+      ElMessage.error('获取相册信息失败')
+      return
+    }
+    
+    editing.value = true
+    
+    // 调用相册API更新相册
+    const result = await albumService.updateAlbum(currentEditAlbum.value.id, {
+      name: editForm.title,
+      description: editForm.description,
+      privacy: editForm.privacy
+    })
+    
+    if (result.success) {
+      ElMessage.success('相册更新成功')
+      handleCloseEdit()
+      // 重新获取相册列表
+      await fetchAlbums()
+    } else {
+      ElMessage.error(result.message || '更新失败')
+    }
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      // 表单验证错误，不需要额外处理
+      return
+    }
+    console.error('更新相册失败:', error)
+    ElMessage.error('更新失败')
+  } finally {
+    editing.value = false
+  }
+}
+
+// 关闭编辑对话框
+const handleCloseEdit = () => {
+  showEditDialog.value = false
+  currentEditAlbum.value = null
+  editForm.title = ''
+  editForm.description = ''
+  editForm.privacy = 'public'
+  editFormRef.value?.resetFields()
 }
 
 // 格式化日期
@@ -827,5 +989,46 @@ onMounted(async () => {
     margin: 0 auto;
     max-width: 400px;
   }
+}
+
+/* 隐私设置样式 */
+.privacy-hint {
+  margin-top: 8px;
+  width: 100%;
+  clear: both;
+}
+
+.hint-text {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.hint-icon {
+  font-size: 14px;
+  color: #409eff;
+  flex-shrink: 0;
+}
+
+.el-radio {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 20px;
+}
+
+/* 确保表单项内容垂直排列 */
+.el-form-item__content {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+}
+
+.el-radio-group {
+  width: 100%;
+  margin-bottom: 8px;
 }
 </style> 

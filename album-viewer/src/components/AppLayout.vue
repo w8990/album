@@ -3,7 +3,7 @@
     <!-- 顶部导航栏 -->
     <el-header class="app-header">
       <div class="header-content">
-        <div class="logo">
+        <div class="logo" @click="goToHome">
           <el-icon size="28"><Camera /></el-icon>
           <span class="logo-text">相册分享</span>
         </div>
@@ -40,6 +40,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user.js'
 import UserAvatar from './UserAvatar.vue'
 import {
@@ -47,8 +48,14 @@ import {
   Search
 } from '@element-plus/icons-vue'
 
+const router = useRouter()
 const userStore = useUserStore()
 const searchQuery = ref('')
+
+// 跳转到首页
+const goToHome = () => {
+  router.push('/home')
+}
 
 // 搜索处理
 const handleSearch = (value) => {

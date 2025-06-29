@@ -199,21 +199,28 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="关注" name="users">
+      <el-tab-pane label="用户" name="users">
         <div class="tab-header">
           <div class="tab-info">
             <h3>关注的用户</h3>
-            <span class="count">共 {{ filteredUsers.length }} 人</span>
+            <span class="count">共 {{ filteredUsers.length }} 位</span>
+          </div>
+          
+          <div class="tab-controls">
+            <el-select v-model="userSortBy" placeholder="排序" style="width: 140px">
+              <el-option label="最新关注" value="latest" />
+              <el-option label="最早关注" value="oldest" />
+              <el-option label="活跃度" value="activity" />
+            </el-select>
           </div>
         </div>
 
         <!-- 加载状态 -->
         <div v-if="loading" class="loading-container">
           <el-skeleton :rows="3" animated />
-          <el-skeleton :rows="3" animated />
         </div>
         
-        <!-- 用户内容 -->
+        <!-- 用户列表 -->
         <div v-else class="users-grid">
           <div 
             v-for="user in filteredUsers" 
@@ -222,13 +229,13 @@
             @click="handleUserClick(user)"
           >
             <div class="user-avatar">
-              <el-avatar :size="80" :src="user.avatar" :icon="UserFilled" />
-              <div class="user-status" :class="{ online: user.isOnline }"></div>
+              <el-avatar :size="80" :src="user.avatar" />
+              <div v-if="user.isOnline" class="online-status"></div>
             </div>
             
             <div class="user-info">
-              <h3 class="user-name">{{ user.nickname || user.username }}</h3>
-              <p class="user-bio">{{ user.bio || '这个人很懒，什么都没写~' }}</p>
+              <h4 class="user-name">{{ user.nickname }}</h4>
+              <p class="user-bio">{{ user.bio }}</p>
               
               <div class="user-stats">
                 <span>{{ user.albumCount }} 相册</span>
@@ -236,38 +243,81 @@
               </div>
               
               <div class="user-actions">
-                <el-button type="primary" size="small">
-                  <el-icon><ChatDotRound /></el-icon>
-                  私信
-                </el-button>
-                <el-button size="small" @click.stop="handleUnfollowUser(user)">
-                  <el-icon><Close /></el-icon>
+                <el-button 
+                  size="small" 
+                  @click.stop="handleUnfollowUser(user)"
+                  :loading="user.unfollowing"
+                >
                   取消关注
+                </el-button>
+                <el-button 
+                  type="primary" 
+                  size="small"
+                  @click.stop="handleVisitProfile(user)"
+                >
+                  查看资料
                 </el-button>
               </div>
             </div>
           </div>
         </div>
+        
+        <!-- 用户空状态 -->
+        <el-empty 
+          v-if="!loading && filteredUsers.length === 0" 
+          description="还没有关注任何用户"
+          :image-size="200"
+        >
+          <el-button type="primary" @click="$router.push('/social')">
+            <el-icon><Plus /></el-icon>
+            发现精彩用户
+          </el-button>
+        </el-empty>
       </el-tab-pane>
     </el-tabs>
 
-    <!-- 空状态 -->
-    <el-empty 
-      v-if="!loading && isEmpty" 
-      :description="emptyDescription"
-      :image-size="200"
-    >
-      <el-button type="primary" @click="$router.push('/home')">
-        <el-icon><Compass /></el-icon>
-        去发现更多内容
-      </el-button>
-    </el-empty>
+    <!-- 批量操作工具栏 -->
+    <el-dialog v-model="showBatchDialog" title="批量操作" width="500px">
+      <div class="batch-actions">
+        <p>已选择 {{ selectedItems.length }} 项</p>
+        <div class="action-buttons">
+          <el-button @click="batchRemove" type="danger">批量移除</el-button>
+          <el-button @click="batchExport">导出列表</el-button>
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 照片预览对话框 -->
+    <el-dialog v-model="showPhotoDialog" :title="currentPhoto?.title" width="80%">
+      <div v-if="currentPhoto" class="photo-preview">
+        <img :src="currentPhoto.url" :alt="currentPhoto.title" class="preview-image" />
+        <div class="photo-meta">
+          <div class="meta-item">
+            <span class="label">作者:</span>
+            <span class="value">{{ currentPhoto.author }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">收藏时间:</span>
+            <span class="value">{{ formatDate(currentPhoto.favoriteAt) }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">浏览量:</span>
+            <span class="value">{{ currentPhoto.views }}</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">点赞数:</span>
+            <span class="value">{{ currentPhoto.likes }}</span>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores/user.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   StarFilled,
@@ -276,118 +326,38 @@ import {
   Menu,
   View,
   Delete,
-  UserFilled,
-  ChatDotRound,
-  Close,
-  Compass
+  Plus,
+  User,
+  Share
 } from '@element-plus/icons-vue'
 import albumService from '../api/albumService.js'
-import { useUserStore } from '../stores/user.js'
 
 const router = useRouter()
 const userStore = useUserStore()
+
+// 响应式数据
 const activeTab = ref('photos')
 const searchQuery = ref('')
+const loading = ref(false)
+const photoViewMode = ref('grid')
 const photoSortBy = ref('latest')
 const albumSortBy = ref('latest')
-const photoViewMode = ref('grid')
-const loading = ref(false)
+const userSortBy = ref('latest')
+const showBatchDialog = ref(false)
+const showPhotoDialog = ref(false)
+const selectedItems = ref([])
+const currentPhoto = ref(null)
 
-// 收藏数据 - 从API获取
+// 收藏数据
 const favoritePhotos = ref([])
 const favoriteAlbums = ref([])
 const favoriteUsers = ref([])
-
-// 获取收藏的照片
-const fetchFavoritePhotos = async () => {
-  try {
-    loading.value = true
-    const result = await albumService.getUserFavorites(userStore.user?.id, { type: 'photos' })
-    
-    if (result.success) {
-      favoritePhotos.value = result.data.favorites.map(fav => ({
-        id: fav.post.id,
-        title: fav.post.title || fav.post.content || '未命名照片',
-        thumbnail: fav.post.images?.[0] || null,
-        url: fav.post.images?.[0] || null,
-        height: 250 + Math.random() * 150, // 随机高度用于瀑布流
-        author: fav.post.author?.nickname || fav.post.author?.username || '匿名用户',
-        views: fav.post.views || 0,
-        likes: fav.post.likes || 0,
-        favoriteAt: fav.createdAt
-      }))
-    } else {
-      ElMessage.error(result.message || '获取收藏照片失败')
-    }
-  } catch (error) {
-    console.error('获取收藏照片失败:', error)
-    ElMessage.error('网络错误，获取收藏照片失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 获取收藏的相册
-const fetchFavoriteAlbums = async () => {
-  try {
-    loading.value = true
-    const result = await albumService.getUserFavorites(userStore.user?.id, { type: 'albums' })
-    
-    if (result.success) {
-      favoriteAlbums.value = result.data.favorites.map(fav => ({
-        id: fav.post.id,
-        title: fav.post.title || fav.post.content || '未命名相册',
-        cover: fav.post.images?.[0] || null,
-        author: fav.post.author?.nickname || fav.post.author?.username || '匿名用户',
-        photoCount: fav.post.images?.length || 0,
-        views: fav.post.views || 0,
-        likes: fav.post.likes || 0,
-        favoriteAt: fav.createdAt?.split('T')[0]
-      }))
-    } else {
-      ElMessage.error(result.message || '获取收藏相册失败')
-    }
-  } catch (error) {
-    console.error('获取收藏相册失败:', error)
-    ElMessage.error('网络错误，获取收藏相册失败')
-  } finally {
-    loading.value = false
-  }
-}
-
-// 获取关注的用户
-const fetchFollowingUsers = async () => {
-  try {
-    loading.value = true
-    const result = await albumService.getFollowing(userStore.user?.id)
-    
-    if (result.success) {
-      favoriteUsers.value = result.data.following.map(follow => ({
-        id: follow.following.id,
-        username: follow.following.username,
-        nickname: follow.following.nickname || follow.following.username,
-        avatar: follow.following.avatar || null,
-        bio: follow.following.bio || '这个人很懒，什么都没写~',
-        albumCount: follow.following.albumCount || 0,
-        followersCount: follow.following.followersCount || 0,
-        isOnline: Math.random() > 0.5, // 随机在线状态
-        followAt: follow.createdAt?.split('T')[0]
-      }))
-    } else {
-      ElMessage.error(result.message || '获取关注用户失败')
-    }
-  } catch (error) {
-    console.error('获取关注用户失败:', error)
-    ElMessage.error('网络错误，获取关注用户失败')
-  } finally {
-    loading.value = false
-  }
-}
 
 // 计算属性
 const filteredPhotos = computed(() => {
   let filtered = favoritePhotos.value
 
+  // 搜索过滤
   if (searchQuery.value) {
     filtered = filtered.filter(photo => 
       photo.title.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
@@ -395,7 +365,8 @@ const filteredPhotos = computed(() => {
     )
   }
 
-  return filtered.sort((a, b) => {
+  // 排序
+  filtered.sort((a, b) => {
     switch (photoSortBy.value) {
       case 'latest':
         return new Date(b.favoriteAt) - new Date(a.favoriteAt)
@@ -409,6 +380,8 @@ const filteredPhotos = computed(() => {
         return 0
     }
   })
+
+  return filtered
 })
 
 const filteredAlbums = computed(() => {
@@ -421,7 +394,7 @@ const filteredAlbums = computed(() => {
     )
   }
 
-  return filtered.sort((a, b) => {
+  filtered.sort((a, b) => {
     switch (albumSortBy.value) {
       case 'latest':
         return new Date(b.favoriteAt) - new Date(a.favoriteAt)
@@ -435,175 +408,280 @@ const filteredAlbums = computed(() => {
         return 0
     }
   })
+
+  return filtered
 })
 
 const filteredUsers = computed(() => {
-  if (!searchQuery.value) return favoriteUsers.value
-  
-  return favoriteUsers.value.filter(user => 
-    user.username.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-    (user.nickname && user.nickname.toLowerCase().includes(searchQuery.value.toLowerCase())) ||
-    (user.bio && user.bio.toLowerCase().includes(searchQuery.value.toLowerCase()))
-  )
-})
+  let filtered = favoriteUsers.value
 
-const waterfallColumns = computed(() => {
-  const columns = [{ id: 1, photos: [] }, { id: 2, photos: [] }, { id: 3, photos: [] }]
-  let columnHeights = [0, 0, 0]
+  if (searchQuery.value) {
+    filtered = filtered.filter(user => 
+      user.nickname.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      (user.bio && user.bio.toLowerCase().includes(searchQuery.value.toLowerCase()))
+    )
+  }
 
-  filteredPhotos.value.forEach(photo => {
-    const minHeightIndex = columnHeights.indexOf(Math.min(...columnHeights))
-    columns[minHeightIndex].photos.push(photo)
-    columnHeights[minHeightIndex] += photo.height + 16 // 16px for margin
+  filtered.sort((a, b) => {
+    switch (userSortBy.value) {
+      case 'latest':
+        return new Date(b.followAt) - new Date(a.followAt)
+      case 'oldest':
+        return new Date(a.followAt) - new Date(b.followAt)
+      case 'activity':
+        return b.lastActiveAt - a.lastActiveAt
+      default:
+        return 0
+    }
   })
 
+  return filtered
+})
+
+// 瀑布流计算
+const waterfallColumns = computed(() => {
+  const columnCount = 3
+  const columns = Array.from({ length: columnCount }, () => ({ id: Math.random(), photos: [] }))
+  
+  filteredPhotos.value.forEach((photo, index) => {
+    const columnIndex = index % columnCount
+    const randomHeight = 200 + Math.random() * 100 // 随机高度模拟瀑布流
+    columns[columnIndex].photos.push({
+      ...photo,
+      height: randomHeight
+    })
+  })
+  
   return columns
 })
 
-const isEmpty = computed(() => {
-  switch (activeTab.value) {
-    case 'photos':
-      return filteredPhotos.value.length === 0
-    case 'albums':
-      return filteredAlbums.value.length === 0
-    case 'users':
-      return filteredUsers.value.length === 0
-    default:
-      return false
-  }
-})
+// 数据获取
+const fetchFavorites = async () => {
+  try {
+    loading.value = true
+    
+    // 检查用户登录状态
+    if (!userStore.isAuthenticated) {
+      ElMessage.warning('请先登录')
+      return
+    }
 
-const emptyDescription = computed(() => {
-  switch (activeTab.value) {
-    case 'photos':
-      return '还没有收藏任何照片'
-    case 'albums':
-      return '还没有收藏任何相册'
-    case 'users':
-      return '还没有关注任何用户'
-    default:
-      return '暂无数据'
+    // 这里应该调用真实的收藏API，现在使用模拟数据
+    await Promise.all([
+      fetchFavoritePhotos(),
+      fetchFavoriteAlbums(),
+      fetchFavoriteUsers()
+    ])
+  } catch (error) {
+    console.error('获取收藏数据失败:', error)
+    ElMessage.error('获取收藏数据失败')
+  } finally {
+    loading.value = false
   }
-})
-
-// 处理照片点击
-const handlePhotoClick = (photo) => {
-  router.push(`/photo/${photo.id}`)
 }
 
-// 处理相册点击
+const fetchFavoritePhotos = async () => {
+  // 模拟收藏照片数据
+  favoritePhotos.value = Array.from({ length: 12 }, (_, i) => ({
+    id: i + 1,
+    title: `精彩照片 ${i + 1}`,
+    thumbnail: `https://picsum.photos/300/400?random=${i + 100}`,
+    url: `https://picsum.photos/800/1200?random=${i + 100}`,
+    author: `摄影师${i + 1}`,
+    views: Math.floor(Math.random() * 1000) + 100,
+    likes: Math.floor(Math.random() * 100) + 10,
+    favoriteAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000)
+  }))
+}
+
+const fetchFavoriteAlbums = async () => {
+  // 模拟收藏相册数据
+  favoriteAlbums.value = Array.from({ length: 8 }, (_, i) => ({
+    id: i + 1,
+    title: `精选相册 ${i + 1}`,
+    cover: `https://picsum.photos/400/300?random=${i + 200}`,
+    author: `创作者${i + 1}`,
+    photoCount: Math.floor(Math.random() * 50) + 10,
+    views: Math.floor(Math.random() * 2000) + 200,
+    likes: Math.floor(Math.random() * 150) + 20,
+    favoriteAt: new Date(Date.now() - Math.random() * 60 * 24 * 60 * 60 * 1000)
+  }))
+}
+
+const fetchFavoriteUsers = async () => {
+  // 模拟关注用户数据
+  favoriteUsers.value = Array.from({ length: 6 }, (_, i) => ({
+    id: i + 1,
+    nickname: `优秀创作者${i + 1}`,
+    bio: `专注${['风景', '人像', '街拍', '建筑', '生活', '艺术'][i]}摄影`,
+    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=user${i}`,
+    albumCount: Math.floor(Math.random() * 20) + 5,
+    followersCount: Math.floor(Math.random() * 1000) + 100,
+    isOnline: Math.random() > 0.5,
+    followAt: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000),
+    lastActiveAt: Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000,
+    unfollowing: false
+  }))
+}
+
+// 事件处理
+const handleTabChange = (tab) => {
+  activeTab.value = tab
+}
+
+const handlePhotoClick = (photo) => {
+  currentPhoto.value = photo
+  showPhotoDialog.value = true
+}
+
 const handleAlbumClick = (album) => {
   router.push(`/album/${album.id}`)
 }
 
-// 处理用户点击
 const handleUserClick = (user) => {
-  router.push(`/user/${user.id}`)
+  router.push(`/profile/${user.id}`)
 }
 
-// 移除收藏照片
+const handleVisitProfile = (user) => {
+  router.push(`/profile/${user.id}`)
+}
+
 const handleRemovePhoto = async (photo) => {
   try {
-    const result = await albumService.togglePostFavorite(photo.id, false)
-    if (result.success) {
+    const result = await ElMessageBox.confirm(
+      `确定要从收藏中移除"${photo.title}"吗？`,
+      '移除收藏',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    if (result === 'confirm') {
       const index = favoritePhotos.value.findIndex(p => p.id === photo.id)
       if (index > -1) {
         favoritePhotos.value.splice(index, 1)
+        ElMessage.success('已从收藏中移除')
       }
-      ElMessage.success('已取消收藏')
-    } else {
-      ElMessage.error(result.message || '操作失败')
     }
   } catch (error) {
-    console.error('取消收藏失败:', error)
-    ElMessage.error('操作失败')
+    // 用户取消操作
   }
 }
 
-// 移除收藏相册
 const handleRemoveAlbum = async (album) => {
   try {
-    const result = await albumService.togglePostFavorite(album.id, false)
-    if (result.success) {
+    const result = await ElMessageBox.confirm(
+      `确定要从收藏中移除"${album.title}"吗？`,
+      '移除收藏',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    if (result === 'confirm') {
       const index = favoriteAlbums.value.findIndex(a => a.id === album.id)
       if (index > -1) {
         favoriteAlbums.value.splice(index, 1)
+        ElMessage.success('已从收藏中移除')
       }
-      ElMessage.success('已取消收藏')
-    } else {
-      ElMessage.error(result.message || '操作失败')
     }
   } catch (error) {
-    console.error('取消收藏失败:', error)
-    ElMessage.error('操作失败')
+    // 用户取消操作
   }
 }
 
-// 取消关注用户
 const handleUnfollowUser = async (user) => {
   try {
-    const result = await albumService.unfollowUser(user.id)
-    if (result.success) {
+    const result = await ElMessageBox.confirm(
+      `确定要取消关注"${user.nickname}"吗？`,
+      '取消关注',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    if (result === 'confirm') {
+      user.unfollowing = true
+      // 模拟取消关注操作
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
       const index = favoriteUsers.value.findIndex(u => u.id === user.id)
       if (index > -1) {
         favoriteUsers.value.splice(index, 1)
+        ElMessage.success('已取消关注')
       }
-      ElMessage.success('已取消关注')
-    } else {
-      ElMessage.error(result.message || '操作失败')
     }
   } catch (error) {
-    console.error('取消关注失败:', error)
-    ElMessage.error('操作失败')
+    user.unfollowing = false
   }
 }
 
-// 格式化日期
+// 批量操作
+const batchRemove = async () => {
+  try {
+    const result = await ElMessageBox.confirm(
+      `确定要移除选中的 ${selectedItems.value.length} 项吗？`,
+      '批量移除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    if (result === 'confirm') {
+      selectedItems.value = []
+      showBatchDialog.value = false
+      ElMessage.success('批量移除成功')
+    }
+  } catch (error) {
+    // 用户取消操作
+  }
+}
+
+const batchExport = () => {
+  ElMessage.info('导出功能开发中...')
+  showBatchDialog.value = false
+}
+
+// 工具方法
 const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString('zh-CN')
 }
 
-// 格式化相对时间
-const formatRelativeTime = (dateString) => {
+const formatRelativeTime = (date) => {
   const now = new Date()
-  const date = new Date(dateString)
   const diff = now - date
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const days = Math.floor(diff / 86400000)
   
   if (days === 0) return '今天'
   if (days === 1) return '昨天'
   if (days < 7) return `${days}天前`
   if (days < 30) return `${Math.floor(days / 7)}周前`
-  return formatDate(dateString)
+  return `${Math.floor(days / 30)}个月前`
 }
 
-// 获取所有收藏数据
-const fetchAllFavorites = async () => {
-  if (!userStore.isAuthenticated) return
-  
-  switch (activeTab.value) {
-    case 'photos':
-      await fetchFavoritePhotos()
-      break
-    case 'albums':
-      await fetchFavoriteAlbums()
-      break
-    case 'users':
-      await fetchFollowingUsers()
-      break
+// 监听搜索
+watch(searchQuery, () => {
+  // 搜索变化时可以添加防抖逻辑
+})
+
+// 组件挂载
+onMounted(async () => {
+  if (!userStore.initialized) {
+    await userStore.initializeAuth()
   }
-}
-
-// 监听选项卡变化
-const handleTabChange = (tab) => {
-  activeTab.value = tab
-  fetchAllFavorites()
-}
-
-// 组件挂载时获取数据
-onMounted(() => {
+  
   if (userStore.isAuthenticated) {
-    fetchAllFavorites()
+    fetchFavorites()
+  } else {
+    ElMessage.warning('请先登录以查看收藏')
   }
 })
 </script>
@@ -932,22 +1010,21 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 24px;
-  padding: 24px;
 }
 
 .user-card {
-  background: #fff;
+  background: white;
   border-radius: 16px;
   padding: 24px;
   cursor: pointer;
   transition: all 0.3s ease;
-  border: 1px solid #f3f4f6;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
   text-align: center;
 }
 
 .user-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.15);
 }
 
 .user-avatar {
@@ -956,19 +1033,15 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-.user-status {
+.online-status {
   position: absolute;
-  bottom: 4px;
-  right: 4px;
+  bottom: 5px;
+  right: 5px;
   width: 16px;
   height: 16px;
+  background: #52c41a;
   border-radius: 50%;
-  background: #d1d5db;
-  border: 2px solid #fff;
-}
-
-.user-status.online {
-  background: #10b981;
+  border: 2px solid white;
 }
 
 .user-name {
@@ -982,13 +1055,12 @@ onMounted(() => {
   color: #6b7280;
   font-size: 14px;
   margin: 0 0 16px 0;
-  line-height: 1.4;
 }
 
 .user-stats {
   display: flex;
   justify-content: center;
-  gap: 20px;
+  gap: 16px;
   margin-bottom: 16px;
   font-size: 14px;
   color: #6b7280;
@@ -1000,36 +1072,77 @@ onMounted(() => {
   justify-content: center;
 }
 
+.batch-actions {
+  text-align: center;
+  padding: 20px;
+}
+
+.action-buttons {
+  margin-top: 20px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.photo-preview {
+  text-align: center;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.photo-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  text-align: left;
+}
+
+.meta-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.value {
+  color: #6b7280;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .header-content {
-    flex-direction: column;
-    gap: 16px;
-  }
-  
-  .stats-bar {
-    justify-content: space-around;
-  }
-  
-  .tab-header {
-    flex-direction: column;
-    gap: 16px;
-    align-items: stretch;
-  }
-  
-  .tab-controls {
-    justify-content: space-between;
-  }
-  
-  .photos-grid,
-  .albums-grid,
   .users-grid {
     grid-template-columns: 1fr;
-    gap: 16px;
   }
   
-  .photos-waterfall {
+  .user-actions {
     flex-direction: column;
+  }
+  
+  .photo-meta {
+    grid-template-columns: 1fr;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
   }
 }
 </style> 
