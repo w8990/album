@@ -1,149 +1,283 @@
 ﻿<template>
   <div class="profile-container">
-    <!-- 背景装饰 -->
-    <div class="profile-background">
-      <div class="bg-gradient"></div>
-    </div>
-
-    <!-- 用户资料卡片 -->
-    <div class="profile-card">
-      <div class="profile-header">
-        <div class="avatar-section">
-          <el-upload
-            v-if="isOwnProfile"
-            class="avatar-uploader"
-            action="#"
-            :show-file-list="false"
-            :before-upload="beforeAvatarUpload"
-            :on-change="handleAvatarChange"
-            :auto-upload="false"
-          >
-            <el-avatar 
-              :size="120" 
-              :src="profileUser?.avatar" 
-              :icon="UserFilled"
-              class="profile-avatar"
-            />
-            <div class="avatar-overlay">
-              <el-icon><Camera /></el-icon>
-              <span>更换头像</span>
+    <!-- 页面头部 -->
+    <div class="page-header">
+      <div class="header-content">
+        <div class="profile-main">
+          <!-- 头像区域 -->
+          <div class="avatar-section">
+            <el-upload
+              v-if="isOwnProfile"
+              class="avatar-uploader"
+              action="#"
+              :show-file-list="false"
+              :before-upload="beforeAvatarUpload"
+              :on-change="handleAvatarChange"
+              :auto-upload="false"
+            >
+              <el-avatar 
+                :size="100" 
+                :src="profileUser?.avatar" 
+                :icon="UserFilled"
+                class="profile-avatar"
+              />
+              <div class="avatar-overlay">
+                <el-icon class="camera-icon"><Camera /></el-icon>
+              </div>
+            </el-upload>
+            <div v-else class="avatar-container">
+              <el-avatar 
+                :size="100" 
+                :src="profileUser?.avatar" 
+                :icon="UserFilled"
+                class="profile-avatar"
+              />
             </div>
-          </el-upload>
-          <el-avatar 
-            v-else
-            :size="120" 
-            :src="profileUser?.avatar" 
-            :icon="UserFilled"
-            class="profile-avatar"
-          />
+            
+            <!-- 在线状态 -->
+            <div v-if="profileUser?.isOnline" class="status-indicator">
+              <div class="status-dot"></div>
+            </div>
+          </div>
           
-          <!-- 在线状态 -->
-          <div v-if="profileUser?.isOnline" class="online-indicator">
-            <div class="online-dot"></div>
+          <!-- 用户信息 -->
+          <div class="user-info">
+            <div class="user-title">
+              <h1 class="username">{{ profileUser?.nickname || profileUser?.display_name || profileUser?.username }}</h1>
+              <div class="user-badges">
+                <el-tag v-if="profileUser?.isVip" type="warning" size="small" class="vip-badge">
+                  <el-icon><Medal /></el-icon>
+                  VIP
+                </el-tag>
+                <el-tag v-if="profileUser?.isVerified" type="success" size="small" class="verified-badge">
+                  <el-icon><Check /></el-icon>
+                  已验证
+                </el-tag>
+              </div>
+            </div>
+            
+            <p class="user-bio">{{ profileUser?.bio || '这个人很懒，什么都没写~' }}</p>
+            
+            <!-- 用户详细信息 -->
+            <div class="user-details">
+              <div v-if="profileUser?.location" class="detail-item">
+                <el-icon><Location /></el-icon>
+                <span>{{ profileUser.location }}</span>
+              </div>
+              <div v-if="profileUser?.website" class="detail-item">
+                <el-icon><Link /></el-icon>
+                <el-link :href="profileUser.website" target="_blank">个人网站</el-link>
+              </div>
+              <div class="detail-item">
+                <el-icon><Calendar /></el-icon>
+                <span>{{ formatJoinDate(profileUser?.created_at || profileUser?.createdAt) }} 加入</span>
+              </div>
+            </div>
+            
+            <!-- 用户标签 -->
+            <div v-if="userTags.length > 0" class="user-tags">
+              <el-tag 
+                v-for="tag in userTags" 
+                :key="tag" 
+                size="small" 
+                class="user-tag"
+              >
+                {{ tag }}
+              </el-tag>
+            </div>
           </div>
         </div>
         
-        <div class="profile-info">
-          <div class="user-title">
-            <h1 class="username">{{ profileUser?.nickname || profileUser?.username }}</h1>
-            <div class="user-badges">
-              <el-tag v-if="profileUser?.isVip" type="warning" size="small">
-                <el-icon><Medal /></el-icon>
-                VIP
-              </el-tag>
-              <el-tag v-if="profileUser?.isVerified" type="success" size="small">
-                <el-icon><Check /></el-icon>
-                已验证
-              </el-tag>
-            </div>
-          </div>
-          
-          <p class="user-bio">{{ profileUser?.bio || '这个人很懒，什么都没写~' }}</p>
-          
-          <!-- 用户详细信息 -->
-          <div class="user-details">
-            <div v-if="profileUser?.location" class="detail-item">
-              <el-icon><Location /></el-icon>
-              <span>{{ profileUser.location }}</span>
-            </div>
-            <div v-if="profileUser?.website" class="detail-item">
-              <el-icon><Link /></el-icon>
-              <el-link :href="profileUser.website" target="_blank">个人网站</el-link>
-            </div>
-            <div class="detail-item">
-              <el-icon><Calendar /></el-icon>
-              <span>{{ formatJoinDate(profileUser?.createdAt) }} 加入</span>
-            </div>
-          </div>
-          
-          <!-- 用户统计 -->
-          <div class="user-stats">
-            <div class="stat-item" @click="showFollowersDialog = true">
-              <span class="stat-number">{{ formatNumber(userStats.followersCount) }}</span>
-              <span class="stat-label">粉丝</span>
-            </div>
-            <div class="stat-item" @click="showFollowingDialog = true">
-              <span class="stat-number">{{ formatNumber(userStats.followingCount) }}</span>
-              <span class="stat-label">关注</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-number">{{ userStats.albumCount }}</span>
-              <span class="stat-label">相册</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-number">{{ formatNumber(userStats.likesCount) }}</span>
-              <span class="stat-label">获赞</span>
-            </div>
-          </div>
-          
-          <!-- 用户标签 -->
-          <div v-if="userTags.length > 0" class="user-tags">
-            <el-tag 
-              v-for="tag in userTags" 
-              :key="tag" 
-              size="small" 
-              class="user-tag"
+        <!-- 操作按钮 -->
+        <div class="header-actions">
+          <template v-if="isOwnProfile">
+            <el-button type="primary" @click="editMode = true">
+              <el-icon><Edit /></el-icon>
+              编辑资料
+            </el-button>
+            <el-button @click="$router.push('/my-albums')">
+              <el-icon><PictureRounded /></el-icon>
+              管理相册
+            </el-button>
+            <el-button @click="shareProfile">
+              <el-icon><Share /></el-icon>
+              分享
+            </el-button>
+          </template>
+          <template v-else>
+            <el-button 
+              :type="isFollowing ? 'default' : 'primary'" 
+              @click="handleFollowUser"
+              :loading="followLoading"
             >
-              {{ tag }}
-            </el-tag>
+              <el-icon><component :is="isFollowing ? Check : Plus" /></el-icon>
+              {{ isFollowing ? '已关注' : '关注' }}
+            </el-button>
+            <el-button @click="startChat">
+              <el-icon><ChatDotRound /></el-icon>
+              私信
+            </el-button>
+            <el-button @click="shareProfile">
+              <el-icon><Share /></el-icon>
+              分享
+            </el-button>
+          </template>
+        </div>
+      </div>
+      
+      <!-- 统计信息 -->
+      <div class="stats-bar">
+        <div class="stat-item" @click="showFollowersDialog = true">
+          <span class="stat-number">{{ formatNumber(userStats.followersCount) }}</span>
+          <span class="stat-label">粉丝</span>
+        </div>
+        <div class="stat-item" @click="showFollowingDialog = true">
+          <span class="stat-number">{{ formatNumber(userStats.followingCount) }}</span>
+          <span class="stat-label">关注</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">{{ userStats.albumCount }}</span>
+          <span class="stat-label">相册</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number">{{ formatNumber(userStats.likesCount) }}</span>
+          <span class="stat-label">获赞</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 内容导航 -->
+    <div class="filter-bar">
+      <div class="nav-tabs">
+        <el-button 
+          :type="activeTab === 'albums' ? 'primary' : ''"
+          @click="activeTab = 'albums'"
+        >
+          <el-icon><PictureRounded /></el-icon>
+          作品集
+        </el-button>
+        <el-button 
+          :type="activeTab === 'activities' ? 'primary' : ''"
+          @click="activeTab = 'activities'"
+        >
+          <el-icon><Histogram /></el-icon>
+          动态
+        </el-button>
+        <el-button 
+          v-if="isOwnProfile"
+          :type="activeTab === 'stats' ? 'primary' : ''"
+          @click="activeTab = 'stats'"
+        >
+          <el-icon><TrendCharts /></el-icon>
+          统计
+        </el-button>
+      </div>
+    </div>
+
+    <!-- 内容区域 -->
+    <div class="content-container">
+      <!-- 作品集 -->
+      <div v-if="activeTab === 'albums'" class="tab-content">
+        <div v-if="albumsLoading" class="loading-container">
+          <el-skeleton :rows="3" animated />
+          <el-skeleton :rows="3" animated />
+          <el-skeleton :rows="3" animated />
+        </div>
+        
+        <div v-else-if="albums.length > 0" class="albums-grid">
+          <div 
+            v-for="album in displayAlbums" 
+            :key="album.id" 
+            class="album-card"
+            @click="handleAlbumClick(album)"
+          >
+            <div class="album-cover">
+              <img v-if="album.cover" :src="album.cover" :alt="album.title" loading="lazy" />
+              <div v-else class="default-cover">
+                <el-icon size="48"><PictureRounded /></el-icon>
+                <span>暂无封面</span>
+              </div>
+              <div class="album-overlay">
+                <div class="overlay-content">
+                  <span class="photo-count">{{ album.photoCount }} 张</span>
+                  <span v-if="album.privacy === 'private'" class="privacy-indicator">
+                    <el-icon><Lock /></el-icon>
+                    私密
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="album-info">
+              <h3 class="album-title">{{ album.title }}</h3>
+              <p class="album-meta">{{ formatDate(album.createdAt) }}</p>
+            </div>
           </div>
           
-          <!-- 智能切换按钮 -->
-          <div class="action-buttons">
-            <template v-if="isOwnProfile">
-              <!-- 自己的资料 - 编辑功能 -->
-              <el-button type="primary" @click="editMode = true">
-                <el-icon><Edit /></el-icon>
-                编辑资料
-              </el-button>
-              <el-button @click="$router.push('/my-albums')">
-                <el-icon><PictureRounded /></el-icon>
-                管理相册
-              </el-button>
-              <el-button @click="shareProfile">
-                <el-icon><Share /></el-icon>
-                分享资料
-              </el-button>
-            </template>
-            <template v-else>
-              <!-- 他人资料 - 社交功能 -->
-              <el-button 
-                :type="isFollowing ? 'default' : 'primary'" 
-                @click="handleFollowUser"
-                :loading="followLoading"
-              >
-                <el-icon><component :is="getIconComponent(isFollowing ? 'Check' : 'Plus')" /></el-icon>
-                {{ isFollowing ? '已关注' : '关注' }}
-              </el-button>
-              <el-button @click="startChat">
-                <el-icon><ChatDotRound /></el-icon>
-                私信
-              </el-button>
-              <el-button @click="shareProfile">
-                <el-icon><Share /></el-icon>
-                分享
-              </el-button>
-            </template>
+          <!-- 查看更多 -->
+          <div v-if="albums.length > 6" class="view-more-card" @click="$router.push('/my-albums')">
+            <div class="view-more-content">
+              <el-icon size="32"><ArrowRight /></el-icon>
+              <span>查看全部 {{ albums.length }} 个相册</span>
+            </div>
+          </div>
+        </div>
+        
+        <div v-else class="empty-state">
+          <el-empty :description="isOwnProfile ? '还没有任何作品，快去创建第一个相册吧！' : '该用户还没有公开作品'">
+            <el-button v-if="isOwnProfile" type="primary" @click="$router.push('/my-albums')">
+              <el-icon><Plus /></el-icon>
+              创建相册
+            </el-button>
+          </el-empty>
+        </div>
+      </div>
+      
+      <!-- 动态 -->
+      <div v-if="activeTab === 'activities'" class="tab-content">
+        <div v-if="activitiesLoading" class="loading-container">
+          <el-skeleton :rows="4" animated />
+        </div>
+        <div v-else-if="activities.length > 0" class="activities-list">
+          <div v-for="activity in activities" :key="activity.id" class="activity-item">
+            <div class="activity-icon">
+              <el-icon><component :is="getActivityIcon(activity.type)" /></el-icon>
+            </div>
+            <div class="activity-content">
+              <p class="activity-text">{{ activity.text }}</p>
+              <span class="activity-time">{{ formatRelativeTime(activity.time) }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-else class="empty-state">
+          <el-empty description="暂无动态记录" />
+        </div>
+      </div>
+      
+      <!-- 统计 -->
+      <div v-if="activeTab === 'stats' && isOwnProfile" class="tab-content">
+        <div class="stats-content">
+          <div class="stats-cards">
+            <div class="stats-card">
+              <h4>本月数据</h4>
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <span class="stat-value">{{ formatNumber(monthlyStats.views) }}</span>
+                  <span class="stat-label">浏览量</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value">{{ formatNumber(monthlyStats.likes) }}</span>
+                  <span class="stat-label">获赞数</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value">{{ formatNumber(monthlyStats.followers) }}</span>
+                  <span class="stat-label">新增粉丝</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-value">{{ monthlyStats.uploads }}</span>
+                  <span class="stat-label">上传作品</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -212,140 +346,42 @@
     <!-- 关注者列表对话框 -->
     <el-dialog v-model="showFollowersDialog" title="粉丝列表" width="500px">
       <div class="followers-list">
-        <div v-for="follower in followers" :key="follower.id" class="follower-item">
-          <el-avatar :size="40" :src="follower.avatar" />
-          <div class="follower-info">
-            <h4>{{ follower.nickname }}</h4>
-            <p>{{ follower.bio }}</p>
-          </div>
-          <el-button v-if="!isOwnProfile" size="small" type="primary">关注</el-button>
+        <div v-if="followersLoading" class="loading-state">
+          <el-skeleton :rows="3" animated />
         </div>
+        <div v-else-if="followers.length > 0" class="user-list">
+          <div v-for="follower in followers" :key="follower.id" class="user-item">
+            <el-avatar :size="40" :src="follower.avatar" />
+            <div class="user-info">
+              <h4>{{ follower.nickname || follower.display_name || follower.username }}</h4>
+              <p>{{ follower.bio || '这个人很懒，什么都没写~' }}</p>
+            </div>
+            <el-button v-if="!isOwnProfile" size="small" type="primary">关注</el-button>
+          </div>
+        </div>
+        <el-empty v-else description="暂无粉丝" />
       </div>
     </el-dialog>
 
     <!-- 关注列表对话框 -->
     <el-dialog v-model="showFollowingDialog" title="关注列表" width="500px">
       <div class="following-list">
-        <div v-for="following in followingList" :key="following.id" class="following-item">
-          <el-avatar :size="40" :src="following.avatar" />
-          <div class="following-info">
-            <h4>{{ following.nickname }}</h4>
-            <p>{{ following.bio }}</p>
-          </div>
-          <el-button v-if="isOwnProfile" size="small">取消关注</el-button>
+        <div v-if="followingLoading" class="loading-state">
+          <el-skeleton :rows="3" animated />
         </div>
+        <div v-else-if="followingList.length > 0" class="user-list">
+          <div v-for="following in followingList" :key="following.id" class="user-item">
+            <el-avatar :size="40" :src="following.avatar" />
+            <div class="user-info">
+              <h4>{{ following.nickname || following.display_name || following.username }}</h4>
+              <p>{{ following.bio || '这个人很懒，什么都没写~' }}</p>
+            </div>
+            <el-button v-if="isOwnProfile" size="small">取消关注</el-button>
+          </div>
+        </div>
+        <el-empty v-else description="暂无关注" />
       </div>
     </el-dialog>
-
-    <!-- 内容选项卡 -->
-    <div class="profile-content">
-      <el-tabs v-model="activeTab" class="profile-tabs">
-        <el-tab-pane label="作品集" name="albums">
-          <div class="tab-content">
-            <!-- 加载状态 -->
-            <div v-if="loading" class="loading-container">
-              <el-skeleton :rows="2" animated />
-              <el-skeleton :rows="2" animated />
-            </div>
-            
-            <!-- 作品展示 -->
-            <div v-else-if="albums.length > 0" class="albums-grid">
-              <div 
-                v-for="album in displayAlbums" 
-                :key="album.id" 
-                class="album-card"
-                @click="handleAlbumClick(album)"
-              >
-                <div class="album-cover">
-                  <img v-if="album.cover" :src="album.cover" :alt="album.title" />
-                  <div v-else class="default-cover">
-                    <el-icon size="48"><PictureRounded /></el-icon>
-                    <span>暂无封面</span>
-                  </div>
-                  <div class="album-overlay">
-                    <div class="overlay-info">
-                      <span class="photo-count">{{ album.photoCount }} 张</span>
-                      <span class="album-privacy" v-if="album.privacy === 'private'">
-                        <el-icon><Lock /></el-icon>
-                        私密
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div class="album-info">
-                  <h3>{{ album.title }}</h3>
-                  <p>{{ album.description || '暂无描述' }}</p>
-                  <span class="album-date">{{ formatDate(album.createdAt) }}</span>
-                </div>
-              </div>
-              
-              <!-- 查看更多按钮 -->
-              <div v-if="albums.length > 6 && isOwnProfile" class="view-more-card">
-                <el-button type="primary" @click="$router.push('/my-albums')" class="view-more-btn">
-                  <el-icon><ArrowRight /></el-icon>
-                  查看全部 {{ albums.length }} 个相册
-                </el-button>
-              </div>
-            </div>
-            
-            <!-- 空状态 -->
-            <div v-else class="empty-state">
-              <el-empty :description="isOwnProfile ? '还没有任何作品，快去创建第一个相册吧！' : '该用户还没有公开作品'">
-                <el-button v-if="isOwnProfile" type="primary" @click="$router.push('/my-albums')">
-                  <el-icon><Plus /></el-icon>
-                  创建相册
-                </el-button>
-              </el-empty>
-            </div>
-          </div>
-        </el-tab-pane>
-        
-        <el-tab-pane label="最近动态" name="activities">
-          <div class="activities-content">
-            <div v-if="activities.length > 0" class="activities-list">
-              <div v-for="activity in activities" :key="activity.id" class="activity-item">
-                <div class="activity-icon">
-                  <el-icon><component :is="getIconComponent(activity.icon)" /></el-icon>
-                </div>
-                <div class="activity-content">
-                  <p class="activity-text">{{ activity.text }}</p>
-                  <span class="activity-time">{{ formatRelativeTime(activity.time) }}</span>
-                </div>
-              </div>
-            </div>
-            <el-empty v-else description="暂无动态记录" />
-          </div>
-        </el-tab-pane>
-        
-        <el-tab-pane v-if="isOwnProfile" label="数据统计" name="stats">
-          <div class="stats-content">
-            <div class="stats-cards">
-              <div class="stats-card">
-                <h4>本月数据</h4>
-                <div class="stats-grid">
-                  <div class="stat-item">
-                    <span class="stat-value">{{ monthlyStats.views }}</span>
-                    <span class="stat-label">浏览量</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ monthlyStats.likes }}</span>
-                    <span class="stat-label">获赞数</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ monthlyStats.followers }}</span>
-                    <span class="stat-label">新增粉丝</span>
-                  </div>
-                  <div class="stat-item">
-                    <span class="stat-value">{{ monthlyStats.uploads }}</span>
-                    <span class="stat-label">上传作品</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-    </div>
   </div>
 </template>
 
@@ -358,7 +394,6 @@ import {
   User,
   Edit,
   Camera,
-  Message,
   UserFilled,
   PictureRounded,
   Plus,
@@ -374,7 +409,10 @@ import {
   Upload,
   Star,
   StarFilled,
-  View
+  View,
+  Close,
+  Histogram, 
+  TrendCharts
 } from '@element-plus/icons-vue'
 import albumService from '../api/albumService.js'
 
@@ -382,18 +420,24 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 
-// 状态
+// 状态管理
 const editMode = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const followLoading = ref(false)
+const albumsLoading = ref(false)
+const activitiesLoading = ref(false)
+const followersLoading = ref(false)
+const followingLoading = ref(false)
+
 const profileUser = ref(null)
 const albums = ref([])
+const activities = ref([])
 const activeTab = ref('albums')
 const showFollowersDialog = ref(false)
 const showFollowingDialog = ref(false)
 
-// 关注状态
+// 社交相关状态
 const isFollowing = ref(false)
 const followers = ref([])
 const followingList = ref([])
@@ -407,7 +451,7 @@ const inputRef = ref()
 const profileForm = reactive({
   nickname: '',
   bio: '',
-  location: '',
+  location: '',  
   website: '',
   tags: []
 })
@@ -434,9 +478,9 @@ const targetUserId = computed(() => {
 
 const userStats = computed(() => ({
   albumCount: albums.value.length,
-  followersCount: profileUser.value?.followersCount || 1234,
-  followingCount: profileUser.value?.followingCount || 89,
-  likesCount: profileUser.value?.likesCount || 5678
+  followersCount: profileUser.value?.followersCount || 0,
+  followingCount: profileUser.value?.followingCount || 0,
+  likesCount: profileUser.value?.likesCount || 0
 }))
 
 const displayAlbums = computed(() => {
@@ -444,55 +488,18 @@ const displayAlbums = computed(() => {
 })
 
 const userTags = computed(() => {
-  return profileUser.value?.tags || ['摄影爱好者', '旅行', '生活记录']
+  return profileUser.value?.tags || []
 })
 
-// 活动数据
-const activities = ref([
-  {
-    id: 1,
-    icon: 'Upload',
-    text: '上传了新相册《春日景色》',
-    time: new Date(Date.now() - 2 * 60 * 60 * 1000)
-  },
-  {
-    id: 2,
-    icon: 'StarFilled',
-    text: '获得了10个新点赞',
-    time: new Date(Date.now() - 5 * 60 * 60 * 1000)
-  },
-  {
-    id: 3,
-    icon: 'Star',
-    text: '作品被收藏了5次',
-    time: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)
-  }
-])
-
-// 图标映射，避免动态导入问题
-const iconComponents = {
-  Upload,
-  Star,
-  StarFilled,
-  View,
-  Medal,
-  Plus,
-  Check
-}
-
-// 获取图标组件
-const getIconComponent = (iconName) => {
-  console.log('获取图标组件:', iconName)
-  return iconComponents[iconName] || Star // 默认使用Star图标
-}
-
-// 月度统计
+// 月度统计数据
 const monthlyStats = reactive({
-  views: 12450,
-  likes: 892,
-  followers: 156,
-  uploads: 23
+  views: 0,
+  likes: 0,
+  followers: 0,
+  uploads: 0
 })
+
+// ===== API 调用方法 =====
 
 // 获取用户资料
 const fetchUserProfile = async () => {
@@ -500,40 +507,38 @@ const fetchUserProfile = async () => {
     loading.value = true
     
     if (isOwnProfile.value) {
-      profileUser.value = {
-        ...userStore.user,
-        isOnline: true,
-        isVerified: true,
-        isVip: false
+      // 获取当前用户信息
+      const result = await albumService.getCurrentUser()
+      if (result.success) {
+        profileUser.value = {
+          ...result.data.user,
+          isOnline: true, // 自己总是在线
+          isVerified: result.data.user.isVerified || false,
+          isVip: result.data.user.isVip || false
+        }
+        
+        // 填充编辑表单
+        profileForm.nickname = result.data.user.nickname || result.data.user.display_name || ''
+        profileForm.bio = result.data.user.bio || ''
+        profileForm.location = result.data.user.location || ''
+        profileForm.website = result.data.user.website || ''
+        profileForm.tags = result.data.user.tags || []
+      } else {
+        ElMessage.error('获取用户信息失败')
       }
-      
-      // 填充编辑表单
-      profileForm.nickname = userStore.user?.nickname || userStore.user?.display_name || ''
-      profileForm.bio = userStore.user?.bio || ''
-      profileForm.location = userStore.user?.location || ''
-      profileForm.website = userStore.user?.website || ''
-      profileForm.tags = userStore.user?.tags || []
     } else {
-      // 获取他人资料的逻辑（使用模拟数据）
-      profileUser.value = {
-        id: targetUserId.value,
-        username: `user_${targetUserId.value}`,
-        nickname: `用户${targetUserId.value}`,
-        bio: '这是一个公开的用户资料',
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${targetUserId.value}`,
-        location: '北京市',
-        website: '',
-        isOnline: Math.random() > 0.5,
-        isVerified: Math.random() > 0.7,
-        isVip: Math.random() > 0.8,
-        followersCount: Math.floor(Math.random() * 1000) + 100,
-        followingCount: Math.floor(Math.random() * 100) + 10,
-        likesCount: Math.floor(Math.random() * 5000) + 500,
-        tags: ['摄影', '设计', '艺术']
+      // 获取其他用户资料
+      const result = await albumService.getUserProfile(targetUserId.value)
+      if (result.success) {
+        profileUser.value = {
+          ...result.data.user,
+          isOnline: Math.random() > 0.5, // 随机在线状态
+          isVerified: result.data.user.isVerified || false,
+          isVip: result.data.user.isVip || false
+        }
+      } else {
+        ElMessage.error('获取用户资料失败')
       }
-      
-      // 随机关注状态
-      isFollowing.value = Math.random() > 0.5
     }
   } catch (error) {
     console.error('获取用户资料失败:', error)
@@ -546,6 +551,8 @@ const fetchUserProfile = async () => {
 // 获取用户相册
 const fetchUserAlbums = async () => {
   try {
+    albumsLoading.value = true
+    
     if (isOwnProfile.value) {
       const result = await albumService.getAlbums()
       if (result.success) {
@@ -556,27 +563,86 @@ const fetchUserAlbums = async () => {
           cover: album.cover,
           photoCount: album.fileCount || 0,
           privacy: album.privacy || 'public',
-          createdAt: album.createdAt
+          createdAt: album.createdAt || album.created_at
         }))
       }
     } else {
-      // 获取他人公开相册（模拟数据）
-      albums.value = Array.from({ length: 3 }, (_, i) => ({
-        id: i + 1,
-        title: `相册 ${i + 1}`,
-        description: '精彩作品集',
-        cover: `https://picsum.photos/400/300?random=${i + 30}`,
-        photoCount: Math.floor(Math.random() * 50) + 10,
-        privacy: 'public',
-        createdAt: new Date(Date.now() - i * 7 * 24 * 60 * 60 * 1000)
-      }))
+      // 获取其他用户的公开相册
+      const result = await albumService.getUserPosts(targetUserId.value)
+      if (result.success) {
+        // 将动态转换为相册格式显示
+        albums.value = result.data.posts.map(post => ({
+          id: post.id,
+          title: post.content || '无标题',
+          description: post.content,
+          cover: post.images && post.images.length > 0 ? post.images[0].url : null,
+          photoCount: post.images ? post.images.length : 0,
+          privacy: 'public',
+          createdAt: post.createdAt
+        }))
+      }
     }
   } catch (error) {
     console.error('获取用户相册失败:', error)
+  } finally {
+    albumsLoading.value = false
   }
 }
 
-// 头像上传相关
+// 获取用户动态
+const fetchUserActivities = async () => {
+  try {
+    activitiesLoading.value = true
+    
+    const result = await albumService.getUserPosts(targetUserId.value, { limit: 10 })
+    if (result.success) {
+      activities.value = result.data.posts.map(post => ({
+        id: post.id,
+        type: 'upload',
+        text: `发布了新作品：${post.content || '无标题'}`,
+        time: new Date(post.createdAt)
+      }))
+    }
+  } catch (error) {
+    console.error('获取用户动态失败:', error)
+  } finally {
+    activitiesLoading.value = false
+  }
+}
+
+// 获取关注者列表
+const fetchFollowers = async () => {
+  try {
+    followersLoading.value = true
+    const result = await albumService.getFollowers(targetUserId.value)
+    if (result.success) {
+      followers.value = result.data.followers || []
+    }
+  } catch (error) {
+    console.error('获取粉丝列表失败:', error)
+  } finally {
+    followersLoading.value = false
+  }
+}
+
+// 获取关注列表  
+const fetchFollowing = async () => {
+  try {
+    followingLoading.value = true
+    const result = await albumService.getFollowing(targetUserId.value)
+    if (result.success) {
+      followingList.value = result.data.following || []
+    }
+  } catch (error) {
+    console.error('获取关注列表失败:', error)
+  } finally {
+    followingLoading.value = false
+  }
+}
+
+// ===== 事件处理方法 =====
+
+// 头像上传
 const beforeAvatarUpload = (file) => {
   const isJPG = file.type === 'image/jpeg' || file.type === 'image/png'
   const isLt2M = file.size / 1024 / 1024 < 2
@@ -593,8 +659,7 @@ const beforeAvatarUpload = (file) => {
 }
 
 const handleAvatarChange = (file) => {
-  // 这里可以实现头像上传逻辑
-  ElMessage.success('头像上传功能开发中...')
+  ElMessage.info('头像上传功能开发中...')
 }
 
 // 标签管理
@@ -623,7 +688,7 @@ const handleSaveProfile = async () => {
     await profileFormRef.value.validate()
     saving.value = true
     
-    const result = await userStore.updateProfile(profileForm)
+    const result = await albumService.updateProfile(profileForm)
     if (result.success) {
       ElMessage.success('个人资料更新成功')
       editMode.value = false
@@ -642,7 +707,7 @@ const handleSaveProfile = async () => {
 const handleCloseEdit = () => {
   editMode.value = false
   // 重置表单
-  profileForm.nickname = profileUser.value?.nickname || ''
+  profileForm.nickname = profileUser.value?.nickname || profileUser.value?.display_name || ''
   profileForm.bio = profileUser.value?.bio || ''
   profileForm.location = profileUser.value?.location || ''
   profileForm.website = profileUser.value?.website || ''
@@ -658,10 +723,29 @@ const handleAlbumClick = (album) => {
 const handleFollowUser = async () => {
   try {
     followLoading.value = true
-    // 这里调用关注/取消关注API
-    isFollowing.value = !isFollowing.value
-    ElMessage.success(isFollowing.value ? '关注成功' : '取消关注成功')
+    
+    let result
+    if (isFollowing.value) {
+      result = await albumService.unfollowUser(targetUserId.value)
+    } else {
+      result = await albumService.followUser(targetUserId.value)
+    }
+    
+    if (result.success) {
+      isFollowing.value = !isFollowing.value
+      ElMessage.success(result.message || (isFollowing.value ? '关注成功' : '取消关注成功'))
+      
+      // 更新关注数量
+      if (isFollowing.value) {
+        profileUser.value.followersCount = (profileUser.value.followersCount || 0) + 1
+      } else {
+        profileUser.value.followersCount = Math.max((profileUser.value.followersCount || 0) - 1, 0)
+      }
+    } else {
+      ElMessage.error(result.message || '操作失败')
+    }
   } catch (error) {
+    console.error('关注操作失败:', error)
     ElMessage.error('操作失败')
   } finally {
     followLoading.value = false
@@ -669,13 +753,14 @@ const handleFollowUser = async () => {
 }
 
 // 分享资料
-const shareProfile = () => {
-  const url = window.location.href
-  navigator.clipboard.writeText(url).then(() => {
+const shareProfile = async () => {
+  try {
+    const url = window.location.href
+    await navigator.clipboard.writeText(url)
     ElMessage.success('资料链接已复制到剪贴板')
-  }).catch(() => {
+  } catch (error) {
     ElMessage.error('复制失败')
-  })
+  }
 }
 
 // 开始聊天
@@ -683,18 +768,22 @@ const startChat = () => {
   ElMessage.info('私信功能开发中...')
 }
 
-// 工具方法
+// ===== 工具方法 =====
+
 const formatDate = (dateString) => {
+  if (!dateString) return ''
   return new Date(dateString).toLocaleDateString('zh-CN')
 }
 
 const formatJoinDate = (dateString) => {
+  if (!dateString) return ''
   return new Date(dateString).getFullYear() + '年'
 }
 
 const formatRelativeTime = (date) => {
+  if (!date) return ''
   const now = new Date()
-  const diff = now - date
+  const diff = now - new Date(date)
   const minutes = Math.floor(diff / 60000)
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)
@@ -705,72 +794,95 @@ const formatRelativeTime = (date) => {
 }
 
 const formatNumber = (num) => {
+  if (!num) return '0'
   if (num >= 10000) return Math.floor(num / 1000) / 10 + 'w'
   if (num >= 1000) return Math.floor(num / 100) / 10 + 'k'
   return num.toString()
 }
 
-// 初始化数据
-const initializeData = async () => {
-  await fetchUserProfile()
-  await fetchUserAlbums()
+const getActivityIcon = (type) => {
+  const icons = {
+    upload: Upload,
+    like: StarFilled,
+    comment: ChatDotRound,
+    follow: User
+  }
+  return icons[type] || Upload
 }
+
+// ===== 数据监听 =====
 
 // 监听路由变化
 watch(() => route.params.userId, () => {
   initializeData()
-}, { immediate: true })
+}, { immediate: false })
 
-onMounted(() => {
-  if (!userStore.initialized) {
-    userStore.initializeAuth().then(() => {
-      initializeData()
-    })
-  } else {
-    initializeData()
+// 监听关注者对话框打开
+watch(showFollowersDialog, (show) => {
+  if (show && followers.value.length === 0) {
+    fetchFollowers()
   }
+})
+
+// 监听关注列表对话框打开
+watch(showFollowingDialog, (show) => {
+  if (show && followingList.value.length === 0) {
+    fetchFollowing()
+  }
+})
+
+// ===== 初始化 =====
+
+const initializeData = async () => {
+  await Promise.all([
+    fetchUserProfile(),
+    fetchUserAlbums(),
+    fetchUserActivities()
+  ])
+  
+  // 获取月度统计数据（仅自己的资料）
+  if (isOwnProfile.value) {
+    // 这里可以调用统计API获取真实数据
+    monthlyStats.views = Math.floor(Math.random() * 10000) + 1000
+    monthlyStats.likes = Math.floor(Math.random() * 1000) + 100
+    monthlyStats.followers = Math.floor(Math.random() * 100) + 10
+    monthlyStats.uploads = albums.value.length
+  }
+}
+
+onMounted(async () => {
+  if (!userStore.initialized) {
+    await userStore.initializeAuth()
+  }
+  await initializeData()
 })
 </script>
 
 <style scoped>
 .profile-container {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
-  position: relative;
 }
 
-.profile-background {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 200px;
-  z-index: 0;
-}
-
-.bg-gradient {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px;
-}
-
-.profile-card {
+.page-header {
   background: #fff;
   border-radius: 16px;
   padding: 32px;
   margin-bottom: 24px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  position: relative;
-  z-index: 1;
-  margin-top: 120px;
 }
 
-.profile-header {
+.header-content {
   display: flex;
+  justify-content: space-between;
   align-items: flex-start;
-  gap: 32px;
+  margin-bottom: 24px;
+}
+
+.profile-main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
 }
 
 .avatar-section {
@@ -783,9 +895,13 @@ onMounted(() => {
   cursor: pointer;
 }
 
+.avatar-container {
+  position: relative;
+}
+
 .profile-avatar {
   border: 4px solid #fff;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 .avatar-overlay {
@@ -794,29 +910,31 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0,0,0,0.6);
-  color: white;
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   opacity: 0;
   transition: opacity 0.3s ease;
   border-radius: 50%;
-  font-size: 12px;
+  color: white;
 }
 
 .avatar-uploader:hover .avatar-overlay {
   opacity: 1;
 }
 
-.online-indicator {
+.camera-icon {
+  font-size: 20px;
+}
+
+.status-indicator {
   position: absolute;
   bottom: 8px;
   right: 8px;
 }
 
-.online-dot {
+.status-dot {
   width: 16px;
   height: 16px;
   background: #52c41a;
@@ -824,7 +942,7 @@ onMounted(() => {
   border: 2px solid white;
 }
 
-.profile-info {
+.user-info {
   flex: 1;
 }
 
@@ -847,6 +965,18 @@ onMounted(() => {
   gap: 8px;
 }
 
+.vip-badge {
+  background: #fbbf24;
+  color: #92400e;
+  border: none;
+}
+
+.verified-badge {
+  background: #10b981;
+  color: white;
+  border: none;
+}
+
 .user-bio {
   color: #6b7280;
   font-size: 16px;
@@ -858,7 +988,7 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .detail-item {
@@ -869,17 +999,35 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.user-stats {
+.user-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.user-tag {
+  background: #f0f9ff;
+  color: #0284c7;
+  border: none;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.stats-bar {
   display: flex;
   gap: 32px;
-  margin-bottom: 20px;
+  padding: 20px 0;
+  border-top: 1px solid #f3f4f6;
 }
 
 .stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
   cursor: pointer;
   transition: transform 0.2s ease;
 }
@@ -889,7 +1037,7 @@ onMounted(() => {
 }
 
 .stat-number {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 700;
   color: #1f2937;
 }
@@ -900,59 +1048,61 @@ onMounted(() => {
   margin-top: 4px;
 }
 
-.user-tags {
+.filter-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 20px;
+  justify-content: flex-start;
+  align-items: center;
+  margin-bottom: 24px;
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-.user-tag {
-  background: #f0f9ff;
-  color: #0284c7;
-  border: none;
-}
-
-.action-buttons {
+.nav-tabs {
   display: flex;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
-.profile-content {
+.content-container {
   background: #fff;
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  min-height: 400px;
 }
 
 .tab-content {
-  padding-top: 20px;
+  padding: 0;
+}
+
+.loading-container {
+  padding: 40px 0;
 }
 
 .albums-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 24px;
 }
 
 .album-card {
-  background: #f9fafb;
-  border-radius: 12px;
+  background: #fff;
+  border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
-  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
 .album-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  transform: translateY(-8px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
 }
 
 .album-cover {
   position: relative;
-  height: 160px;
+  height: 220px;
   overflow: hidden;
 }
 
@@ -964,39 +1114,7 @@ onMounted(() => {
 }
 
 .album-card:hover .album-cover img {
-  transform: scale(1.05);
-}
-
-.album-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(transparent, rgba(0,0,0,0.8));
-  display: flex;
-  align-items: flex-end;
-  padding: 12px;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.album-card:hover .album-overlay {
-  opacity: 1;
-}
-
-.overlay-info {
-  color: white;
-  font-size: 12px;
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-}
-
-.album-privacy {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  transform: scale(1.1);
 }
 
 .default-cover {
@@ -1010,37 +1128,64 @@ onMounted(() => {
   color: #8b9dc3;
 }
 
-.album-info {
-  padding: 16px;
+.album-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  color: white;
+  padding: 20px;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
 }
 
-.album-info h3 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  color: #1f2937;
+.album-card:hover .album-overlay {
+  transform: translateY(0);
+}
+
+.overlay-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.photo-count {
   font-weight: 600;
 }
 
-.album-info p {
-  margin: 0 0 8px 0;
-  color: #6b7280;
-  font-size: 14px;
-  line-height: 1.4;
+.privacy-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.album-date {
-  color: #9ca3af;
-  font-size: 12px;
+.album-info {
+  padding: 20px;
+}
+
+.album-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #1f2937;
+}
+
+.album-meta {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0;
 }
 
 .view-more-card {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: 220px;
   background: #f9fafb;
   border: 2px dashed #d1d5db;
-  border-radius: 12px;
+  border-radius: 16px;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
@@ -1049,13 +1194,19 @@ onMounted(() => {
   background: #f0f4ff;
 }
 
-.view-more-btn {
-  font-size: 16px;
-  padding: 12px 24px;
+.view-more-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #667eea;
+  font-weight: 600;
 }
 
 .activities-list {
-  space-y: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .activity-item {
@@ -1064,7 +1215,11 @@ onMounted(() => {
   padding: 16px;
   background: #f9fafb;
   border-radius: 8px;
-  margin-bottom: 12px;
+  transition: background 0.2s ease;
+}
+
+.activity-item:hover {
+  background: #f3f4f6;
 }
 
 .activity-icon {
@@ -1092,6 +1247,10 @@ onMounted(() => {
 .activity-time {
   color: #6b7280;
   font-size: 12px;
+}
+
+.stats-content {
+  padding: 0;
 }
 
 .stats-cards {
@@ -1132,12 +1291,27 @@ onMounted(() => {
   display: block;
 }
 
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.loading-state {
+  padding: 20px 0;
+}
+
 .followers-list, .following-list {
   max-height: 400px;
   overflow-y: auto;
 }
 
-.follower-item, .following-item {
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.user-item {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1145,17 +1319,17 @@ onMounted(() => {
   border-bottom: 1px solid #f0f0f0;
 }
 
-.follower-info, .following-info {
-  flex: 1;
+.user-item:last-child {
+  border-bottom: none;
 }
 
-.follower-info h4, .following-info h4 {
+.user-info h4 {
   margin: 0 0 4px 0;
   font-size: 14px;
   color: #1f2937;
 }
 
-.follower-info p, .following-info p {
+.user-info p {
   margin: 0;
   font-size: 12px;
   color: #6b7280;
@@ -1176,52 +1350,96 @@ onMounted(() => {
   background: white;
 }
 
-.empty-state {
-  padding: 40px 20px;
-  text-align: center;
-}
-
-.loading-container {
-  padding: 20px 0;
-}
-
 /* 响应式设计 */
-@media (max-width: 768px) {
-  .profile-header {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 20px;
+@media (max-width: 1024px) {
+  .profile-container {
+    padding: 0 16px;
   }
   
-  .user-stats {
-    justify-content: center;
+  .page-header {
+    padding: 24px;
   }
   
-  .user-details {
-    justify-content: center;
+  .header-content {
+    gap: 24px;
   }
   
   .albums-grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: 16px;
   }
-  
-  .action-buttons {
-    justify-content: center;
-  }
-  
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  
-  .user-title {
+}
+
+@media (max-width: 768px) {
+  .header-content {
     flex-direction: column;
-    gap: 8px;
+    align-items: stretch;
+    gap: 20px;
+  }
+  
+  .profile-main {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 16px;
   }
   
   .username {
     font-size: 24px;
   }
+  
+  .header-actions {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .stats-bar {
+    justify-content: space-around;
+  }
+  
+  .filter-bar {
+    padding: 16px;
+  }
+  
+  .albums-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  
+  .nav-tabs {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-container {
+    padding: 0 12px;
+  }
+  
+  .page-header {
+    padding: 20px;
+  }
+  
+  .header-content {
+    gap: 16px;
+  }
+  
+  .username {
+    font-size: 22px;
+  }
+  
+  .stats-bar {
+    gap: 16px;
+  }
+  
+  .albums-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>
+
