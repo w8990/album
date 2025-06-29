@@ -397,5 +397,41 @@ router.post('/upload-avatar', authenticateToken, upload.single('avatar'), async 
   }
 });
 
+// 获取指定用户的统计数据
+router.get('/users/:userId/stats', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId);
+    
+    if (!userId || isNaN(userId)) {
+      return res.status(400).json({ 
+        error: '无效的用户ID',
+        code: 'INVALID_USER_ID'
+      });
+    }
+
+    // 检查用户是否存在
+    const user = await getUserById(userId);
+    if (!user) {
+      return res.status(404).json({ 
+        error: '用户不存在',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+
+    const stats = await getUserStats(userId);
+
+    res.json({ 
+      success: true,
+      data: stats
+    });
+  } catch (error) {
+    console.error('获取用户统计失败:', error);
+    res.status(500).json({ 
+      error: '获取用户统计失败',
+      code: 'GET_USER_STATS_ERROR'
+    });
+  }
+});
+
 export default router; 
  

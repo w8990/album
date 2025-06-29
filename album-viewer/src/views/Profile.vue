@@ -483,9 +483,9 @@ const targetUserId = computed(() => {
 
 const userStats = computed(() => ({
   albumCount: albums.value.length,
-  followersCount: profileUser.value?.followersCount || 0,
-  followingCount: profileUser.value?.followingCount || 0,
-  likesCount: profileUser.value?.likesCount || 0
+  followersCount: profileUser.value?.followersCount || profileUser.value?.followers || 0,
+  followingCount: profileUser.value?.followingCount || profileUser.value?.following || 0,
+  likesCount: profileUser.value?.likesCount || profileUser.value?.likes || 0
 }))
 
 const displayAlbums = computed(() => {
@@ -516,6 +516,8 @@ const fetchUserProfile = async () => {
       const result = await albumService.getCurrentUser()
       if (result.success) {
         const user = result.data.user
+        const stats = result.data.stats || {}
+        
         profileUser.value = {
           ...user,
           // 处理头像URL，如果是相对路径则添加服务器地址
@@ -524,7 +526,13 @@ const fetchUserProfile = async () => {
             : null,
           isOnline: true, // 自己总是在线
           isVerified: user.isVerified || false,
-          isVip: user.isVip || false
+          isVip: user.isVip || false,
+          // 添加统计数据
+          followers: stats.followers || 0,
+          following: stats.following || 0,
+          likes: stats.likes || 0,
+          posts: stats.posts || 0,
+          favorites: stats.favorites || 0
         }
         
         // 填充编辑表单
@@ -541,6 +549,25 @@ const fetchUserProfile = async () => {
       const result = await albumService.getUserProfile(targetUserId.value)
       if (result.success) {
         const user = result.data.user
+        
+        // 获取用户统计数据
+        let userStats = {
+          followers: 0,
+          following: 0,
+          likes: 0,
+          posts: 0,
+          favorites: 0
+        }
+        
+        try {
+          const statsResult = await albumService.getUserStats(targetUserId.value)
+          if (statsResult.success) {
+            userStats = statsResult.data
+          }
+        } catch (error) {
+          console.error('获取用户统计失败:', error)
+        }
+        
         profileUser.value = {
           ...user,
           // 处理头像URL
@@ -549,7 +576,13 @@ const fetchUserProfile = async () => {
             : null,
           isOnline: Math.random() > 0.5, // 随机在线状态
           isVerified: user.isVerified || false,
-          isVip: user.isVip || false
+          isVip: user.isVip || false,
+          // 使用获取到的统计数据
+          followers: userStats.followers || 0,
+          following: userStats.following || 0,
+          likes: userStats.likes || 0,
+          posts: userStats.posts || 0,
+          favorites: userStats.favorites || 0
         }
       } else {
         ElMessage.error('获取用户资料失败')
@@ -778,8 +811,10 @@ const handleFollowUser = async () => {
       
       // 更新关注数量
       if (isFollowing.value) {
+        profileUser.value.followers = (profileUser.value.followers || 0) + 1
         profileUser.value.followersCount = (profileUser.value.followersCount || 0) + 1
       } else {
+        profileUser.value.followers = Math.max((profileUser.value.followers || 0) - 1, 0)
         profileUser.value.followersCount = Math.max((profileUser.value.followersCount || 0) - 1, 0)
       }
     } else {
@@ -883,11 +918,25 @@ const initializeData = async () => {
   
   // 获取月度统计数据（仅自己的资料）
   if (isOwnProfile.value) {
-    // 这里可以调用统计API获取真实数据
-    monthlyStats.views = Math.floor(Math.random() * 10000) + 1000
-    monthlyStats.likes = Math.floor(Math.random() * 1000) + 100
-    monthlyStats.followers = Math.floor(Math.random() * 100) + 10
-    monthlyStats.uploads = albums.value.length
+    try {
+      const result = await albumService.getMonthlyStats()
+      if (result.success) {
+        Object.assign(monthlyStats, result.data)
+      } else {
+        // 如果获取失败，使用当前数据作为基础进行估算
+        monthlyStats.views = (profileUser.value?.posts || 0) * 25 + Math.floor(Math.random() * 200)
+        monthlyStats.likes = profileUser.value?.likes || 0
+        monthlyStats.followers = Math.floor((profileUser.value?.followers || 0) * 0.1) // 假设10%是本月新增
+        monthlyStats.uploads = albums.value.length
+      }
+    } catch (error) {
+      console.error('获取月度统计失败:', error)
+      // 使用估算数据
+      monthlyStats.views = (profileUser.value?.posts || 0) * 25 + Math.floor(Math.random() * 200)
+      monthlyStats.likes = profileUser.value?.likes || 0
+      monthlyStats.followers = Math.floor((profileUser.value?.followers || 0) * 0.1)
+      monthlyStats.uploads = albums.value.length
+    }
   }
 }
 

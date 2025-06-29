@@ -485,7 +485,6 @@ export async function getFileListWithSocial(options?: {
         return {
           ...file,
           shares: 0, // 分享功能暂时设为0
-          views: 0,  // 浏览量功能暂时设为0
           latestComments: commentsData.data
         };
       })

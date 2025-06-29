@@ -312,12 +312,20 @@ export async function getUserStats(userId: number) {
     );
     const favorites = (favoritesResult as any[])[0].count;
 
+    // 总浏览量
+    const [viewsResult] = await pool.query(
+      'SELECT SUM(views) as totalViews FROM files WHERE user_id = ?',
+      [userId]
+    );
+    const views = (viewsResult as any[])[0].totalViews || 0;
+
     return {
       posts,
       following,
       followers,
       likes,
-      favorites
+      favorites,
+      views
     };
   } catch (error) {
     console.error('获取用户统计失败:', error);

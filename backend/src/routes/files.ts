@@ -8,7 +8,8 @@ import {
   deleteFile,
   moveFileToAlbum,
   moveFilesToAlbum,
-  getFileListWithSocial
+  getFileListWithSocial,
+  incrementFileViews
 } from '../db';
 import { authenticateToken, optionalAuth } from '../middleware/auth';
 import { upload } from '../middleware/upload';
@@ -273,6 +274,50 @@ router.put('/batch/move', optionalAuth, async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: '批量移动文件失败' 
+    });
+  }
+});
+
+// 记录文件浏览量
+router.post('/:id/view', async (req, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    
+    if (!fileId || isNaN(fileId)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: '无效的文件ID' 
+      });
+    }
+
+    // 检查文件是否存在
+    const fileInfo = await getFileInfo(fileId);
+    if (!fileInfo) {
+      return res.status(404).json({ 
+        success: false, 
+        error: '文件不存在' 
+      });
+    }
+
+    // 增加浏览量
+    const success = await incrementFileViews(fileId);
+    
+    if (success) {
+      res.json({
+        success: true,
+        message: '浏览量记录成功'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: '记录浏览量失败'
+      });
+    }
+  } catch (error) {
+    console.error('记录浏览量失败:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: '记录浏览量失败' 
     });
   }
 });

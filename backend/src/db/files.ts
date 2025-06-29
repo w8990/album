@@ -375,4 +375,34 @@ export async function moveFilesToAlbum(fileIds: number[], albumId: number | null
     console.error('批量移动文件到相册失败:', error);
     throw error;
   }
+}
+
+// 增加文件浏览量
+export async function incrementFileViews(fileId: number) {
+  try {
+    const [result] = await pool.query(
+      `UPDATE ${TABLE_NAME} SET views = views + 1 WHERE id = ?`,
+      [fileId]
+    );
+
+    return (result as any).affectedRows > 0;
+  } catch (error) {
+    console.error('增加浏览量失败:', error);
+    throw error;
+  }
+}
+
+// 获取用户总浏览量
+export async function getUserTotalViews(userId: number) {
+  try {
+    const [result] = await pool.query(
+      `SELECT SUM(views) as totalViews FROM ${TABLE_NAME} WHERE user_id = ?`,
+      [userId]
+    );
+
+    return (result as any[])[0].totalViews || 0;
+  } catch (error) {
+    console.error('获取用户总浏览量失败:', error);
+    throw error;
+  }
 } 

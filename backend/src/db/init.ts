@@ -195,6 +195,18 @@ async function checkAndAddColumns() {
     await pool.query(`ALTER TABLE ${TABLE_NAME} ADD FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`);
   }
 
+  // 检查files表是否需要添加views字段
+  const [viewsColumns] = await pool.query(`
+    SELECT COLUMN_NAME 
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = 'views'
+  `, [DB_NAME, TABLE_NAME]);
+  
+  if ((viewsColumns as any[]).length === 0) {
+    await pool.query(`ALTER TABLE ${TABLE_NAME} ADD COLUMN views INT NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE ${TABLE_NAME} ADD INDEX idx_views (views)`);
+  }
+
   // 检查albums表是否需要添加user_id字段
   const [albumsColumns] = await pool.query(`
     SELECT COLUMN_NAME 

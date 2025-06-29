@@ -14,7 +14,9 @@ export {
   getFileInfo,
   deleteFile,
   moveFileToAlbum,
-  moveFilesToAlbum
+  moveFilesToAlbum,
+  incrementFileViews,
+  getUserTotalViews
 } from './files';
 
 // 导出相册相关操作
