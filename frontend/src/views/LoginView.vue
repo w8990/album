@@ -61,6 +61,16 @@
             </div>
           </el-form-item>
 
+          <!-- 错误信息显示区域 -->
+          <div v-if="loginError" class="error-message">
+            <el-alert
+              :title="loginError"
+              type="error"
+              :closable="false"
+              show-icon
+            />
+          </div>
+
           <el-form-item>
             <el-button
               type="primary"
@@ -129,6 +139,9 @@ const loginForm = reactive<LoginForm>({
   remember: false
 })
 
+// 登录错误信息
+const loginError = ref<string>('')
+
 // 表单验证规则
 const loginRules: FormRules = {
   login: [
@@ -141,9 +154,20 @@ const loginRules: FormRules = {
   ]
 }
 
+// 清除错误信息
+const clearError = () => {
+  loginError.value = ''
+}
+
 // 处理登录
 const handleLogin = async () => {
   if (!loginFormRef.value) return
+  
+  // 防止重复提交
+  if (userStore.isLoading) return
+  
+  // 清除之前的错误信息
+  clearError()
   
   const valid = await loginFormRef.value.validate().catch(() => false)
   if (!valid) return
@@ -154,7 +178,15 @@ const handleLogin = async () => {
     ElMessage.success(result.message || '登录成功')
     router.push('/')
   } else {
-    ElMessage.error(result.message || '登录失败')
+    // 显示详细错误信息
+    const errorMessage = result.message || '登录失败'
+    loginError.value = errorMessage
+    ElMessage.error(errorMessage)
+    
+    // 记录错误码（用于后续功能扩展）
+    if ((result as any).code) {
+      console.log('登录错误码:', (result as any).code)
+    }
   }
 }
 
@@ -393,6 +425,20 @@ const goToRegister = () => {
 .register-link .el-link {
   margin-left: 8px;
   font-weight: 600;
+}
+
+/* 错误信息样式 */
+.error-message {
+  margin-bottom: 16px;
+}
+
+.error-message :deep(.el-alert) {
+  border-radius: 8px;
+}
+
+.error-message :deep(.el-alert__title) {
+  font-size: 14px;
+  line-height: 1.4;
 }
 
 /* 响应式设计 */

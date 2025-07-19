@@ -6,18 +6,46 @@ import { authApi } from '../api/auth'
 export const useUserStore = defineStore('user', () => {
   // 状态
   const user = ref<User | null>(null)
-  const token = ref<string | null>(localStorage.getItem('token'))
+  const token = ref<string | null>(null)
   const isLoading = ref(false)
 
   // 计算属性
   const isAuthenticated = computed(() => !!token.value && !!user.value)
 
+  // 获取存储的token（优先从localStorage，其次从sessionStorage）
+  const getStoredToken = (): string | null => {
+    return localStorage.getItem('token') || sessionStorage.getItem('token')
+  }
+
+  // 获取存储的用户信息
+  const getStoredUser = (): User | null => {
+    const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user')
+    return storedUser ? JSON.parse(storedUser) : null
+  }
+
+  // 初始化token
+  token.value = getStoredToken()
+
   // 设置认证信息
-  const setAuth = (userData: User, authToken: string) => {
+  const setAuth = (userData: User, authToken: string, remember: boolean = false) => {
     user.value = userData
     token.value = authToken
-    localStorage.setItem('token', authToken)
-    localStorage.setItem('user', JSON.stringify(userData))
+    
+    // 根据"记住我"选项选择存储方式
+    const storage = remember ? localStorage : sessionStorage
+    
+    // 清除其他存储方式的数据
+    if (remember) {
+      sessionStorage.removeItem('token')
+      sessionStorage.removeItem('user')
+    } else {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+    }
+    
+    // 存储到指定位置
+    storage.setItem('token', authToken)
+    storage.setItem('user', JSON.stringify(userData))
   }
 
   // 清除认证信息
@@ -26,15 +54,17 @@ export const useUserStore = defineStore('user', () => {
     token.value = null
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    sessionStorage.removeItem('token')
+    sessionStorage.removeItem('user')
   }
 
   // 从本地存储恢复用户信息
   const restoreAuth = () => {
-    const savedUser = localStorage.getItem('user')
-    const savedToken = localStorage.getItem('token')
+    const savedUser = getStoredUser()
+    const savedToken = getStoredToken()
     
     if (savedUser && savedToken) {
-      user.value = JSON.parse(savedUser)
+      user.value = savedUser
       token.value = savedToken
     }
   }
@@ -46,15 +76,28 @@ export const useUserStore = defineStore('user', () => {
       const response = await authApi.login(loginForm)
       
       if (response.success && response.data) {
-        setAuth(response.data.user, response.data.token)
+        setAuth(response.data.user, response.data.token, loginForm.remember)
+        
+        // 登录成功后自动获取最新的用户信息
+        try {
+          await getCurrentUser()
+        } catch (error) {
+          console.warn('获取最新用户信息失败，使用登录返回的信息:', error)
+        }
+        
         return { success: true, message: response.message }
       } else {
-        return { success: false, message: response.error || '登录失败' }
+        return { 
+          success: false, 
+          message: response.error || '登录失败',
+          code: (response as any).code
+        }
       }
     } catch (error: any) {
       return { 
         success: false, 
-        message: error.response?.data?.error || '登录失败' 
+        message: error.response?.data?.error || '登录失败',
+        code: error.response?.data?.code
       }
     } finally {
       isLoading.value = false
@@ -68,7 +111,16 @@ export const useUserStore = defineStore('user', () => {
       const response = await authApi.register(registerForm)
       
       if (response.success && response.data) {
-        setAuth(response.data.user, response.data.token)
+        // 注册时默认记住用户
+        setAuth(response.data.user, response.data.token, true)
+        
+        // 注册成功后自动获取最新的用户信息
+        try {
+          await getCurrentUser()
+        } catch (error) {
+          console.warn('获取最新用户信息失败，使用注册返回的信息:', error)
+        }
+        
         return { success: true, message: response.message }
       } else {
         return { success: false, message: response.error || '注册失败' }
@@ -100,7 +152,15 @@ export const useUserStore = defineStore('user', () => {
       const response = await authApi.getCurrentUser()
       if (response.success) {
         user.value = response.data.user
-        localStorage.setItem('user', JSON.stringify(response.data.user))
+        
+        // 更新存储的用户信息（保持原有的存储方式）
+        const currentToken = getStoredToken()
+        if (localStorage.getItem('token') === currentToken) {
+          localStorage.setItem('user', JSON.stringify(response.data.user))
+        } else if (sessionStorage.getItem('token') === currentToken) {
+          sessionStorage.setItem('user', JSON.stringify(response.data.user))
+        }
+        
         return response.data.user
       }
     } catch (error) {

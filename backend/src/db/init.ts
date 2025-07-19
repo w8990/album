@@ -163,6 +163,22 @@ export async function initDB() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+
+    // 创建登录尝试记录表（防爆破保护）
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS login_attempts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        identifier VARCHAR(100) NOT NULL COMMENT '用户名或邮箱或IP地址',
+        attempt_count INT DEFAULT 1,
+        first_attempt_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_attempt_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        is_locked BOOLEAN DEFAULT FALSE,
+        locked_until TIMESTAMP NULL,
+        INDEX idx_identifier (identifier),
+        INDEX idx_last_attempt (last_attempt_at),
+        INDEX idx_locked (is_locked, locked_until)
+      )
+    `);
     
     // 检查并添加新字段（为了兼容现有数据）
     await checkAndAddColumns();

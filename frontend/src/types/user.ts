@@ -37,6 +37,7 @@ export interface AuthResponse {
   }
   message?: string
   error?: string
+  code?: string
 }
 
 export interface UserStats {

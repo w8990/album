@@ -56,7 +56,7 @@ router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore()
   
   // 恢复用户认证状态
-  if (!userStore.user && localStorage.getItem('token')) {
+  if (!userStore.user && (localStorage.getItem('token') || sessionStorage.getItem('token'))) {
     userStore.restoreAuth()
     
     // 如果有token但没有用户信息，尝试获取用户信息

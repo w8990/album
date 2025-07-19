@@ -14,7 +14,7 @@ const api = axios.create({
 // 请求拦截器 - 添加认证token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token')
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -33,6 +33,8 @@ api.interceptors.response.use(
       // Token过期或无效，清除本地存储
       localStorage.removeItem('token')
       localStorage.removeItem('user')
+      sessionStorage.removeItem('token')
+      sessionStorage.removeItem('user')
       // 可以在这里跳转到登录页面
       window.location.href = '/login'
     }
