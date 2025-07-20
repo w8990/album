@@ -57,7 +57,7 @@ class AlbumManagementService {
           name: album.name,
           title: album.name, // 兼容字段
           description: album.description || '',
-          cover: album.cover_url ? `${API_BASE_URL.replace('/api', '')}${album.cover_url}` : null,
+          cover: album.cover_url ? (album.cover_url.startsWith('http') ? album.cover_url : `${API_BASE_URL.replace('/api', '')}${album.cover_url}`) : null,
           coverUrl: album.cover_url,
           fileCount: album.file_count || 0,
           photoCount: album.file_count || 0, // 兼容字段
@@ -154,7 +154,7 @@ class AlbumManagementService {
           name: data.data.name,
           title: data.data.name, // 兼容字段
           description: data.data.description || '',
-          cover: data.data.cover_url ? `${API_BASE_URL.replace('/api', '')}${data.data.cover_url}` : null,
+          cover: data.data.cover_url ? (data.data.cover_url.startsWith('http') ? data.data.cover_url : `${API_BASE_URL.replace('/api', '')}${data.data.cover_url}`) : null,
           fileCount: data.data.file_count || 0,
           photoCount: data.data.file_count || 0, // 兼容字段
           totalSize: data.data.total_size || 0,

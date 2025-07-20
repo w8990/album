@@ -178,7 +178,7 @@ router.post('/upload', authenticateToken, upload.array('files', 10), async (req,
         originalname: file.originalname,
         mimetype: file.mimetype,
         size: file.size,
-        url: `http://localhost:3000/uploads/${file.filename}`,
+        url: process.env.BASE_URL ? `${process.env.BASE_URL}/uploads/${file.filename}` : `/uploads/${file.filename}`,
         album_id: albumId,
         user_id: userId
       };

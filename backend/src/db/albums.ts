@@ -44,8 +44,8 @@ export async function getAlbums(userId?: number) {
           ELSE COALESCE((SELECT SUM(size) FROM ${TABLE_NAME} WHERE album_id = a.id AND user_id = a.user_id), 0)
         END as total_size,
         CASE 
-          WHEN a.name = '默认相册' AND a.user_id = ? THEN (SELECT url FROM ${TABLE_NAME} WHERE album_id IS NULL AND user_id = ? AND mimetype LIKE 'image/%' ORDER BY created_at DESC LIMIT 1)
-          ELSE (SELECT url FROM ${TABLE_NAME} WHERE album_id = a.id AND user_id = a.user_id AND mimetype LIKE 'image/%' ORDER BY created_at DESC LIMIT 1)
+          WHEN a.name = '默认相册' AND a.user_id = ? THEN (SELECT url FROM ${TABLE_NAME} WHERE album_id IS NULL AND user_id = ? AND mimetype LIKE 'image/%' ORDER BY created_at ASC LIMIT 1)
+          ELSE (SELECT url FROM ${TABLE_NAME} WHERE album_id = a.id AND user_id = a.user_id AND mimetype LIKE 'image/%' ORDER BY created_at ASC LIMIT 1)
         END as cover_url
       FROM ${ALBUMS_TABLE} a
       LEFT JOIN users u ON a.user_id = u.id

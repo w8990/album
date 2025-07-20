@@ -80,7 +80,7 @@
           <div class="album-cover">
             <img
               v-if="album.cover_url"
-              :src="`${API_BASE_URL}${album.cover_url}`"
+              :src="getImageUrl(album.cover_url)"
               :alt="album.name"
               class="cover-image"
             >
@@ -249,7 +249,7 @@
                 <div class="preview-container">
                   <img
                     v-if="file.mimetype.startsWith('image/')"
-                    :src="file.url"
+                    :src="getImageUrl(file.url)"
                     :alt="file.originalname"
                     class="preview-image"
                     loading="lazy"
@@ -312,7 +312,7 @@
                 <div class="table-preview">
                   <img
                     v-if="row.mimetype.startsWith('image/')"
-                    :src="row.url"
+                    :src="getImageUrl(row.url)"
                     class="table-preview-img"
                     loading="lazy"
                   >
@@ -708,6 +708,8 @@ const handleSearch = async () => {
         queryParams.append('albumId', albumId === 'default' ? 'default' : albumId.toString());
       }
       
+      // 添加时间戳防止缓存
+      queryParams.append('_t', new Date().getTime().toString());
       const url = `${API_ENDPOINTS.FILES}/search?${queryParams.toString()}`;
       const response = await fetch(url, {
         headers: getAuthHeaders()
@@ -757,6 +759,19 @@ const scrollToAlbums = () => {
   if (albumsSection.value) {
     albumsSection.value.scrollIntoView({ behavior: 'smooth' })
   }
+}
+
+// URL处理函数
+const getImageUrl = (url: string) => {
+  if (!url) return ''
+  
+  // 如果已经是绝对URL，直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  
+  // 如果是相对路径，拼接API_BASE_URL
+  return `${API_BASE_URL}${url}`
 }
 
 // 相册相关函数
@@ -1307,6 +1322,8 @@ const loadFiles = async (params?: {
       queryParams.append('limit', params.limit.toString());
     }
     
+    // 添加时间戳防止缓存
+    queryParams.append('_t', new Date().getTime().toString());
     const url = `${API_ENDPOINTS.FILES}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     const response = await fetch(url, {
       headers: getAuthHeaders()
@@ -1330,7 +1347,9 @@ const loadFiles = async (params?: {
 // 加载相册列表
 const loadAlbums = async () => {
   try {
-    const response = await fetch(API_ENDPOINTS.ALBUMS, {
+    // 添加时间戳防止缓存
+    const timestamp = new Date().getTime()
+    const response = await fetch(`${API_ENDPOINTS.ALBUMS}?_t=${timestamp}`, {
       headers: getAuthHeaders()
     })
     if (!response.ok) {

@@ -44,7 +44,7 @@ class SocialService {
           content: file.caption || '',
           images: [{
             id: file.id,
-            url: `${API_BASE_URL.replace('/api', '')}${file.url}`,
+            url: file.url.startsWith('http') ? file.url : `${API_BASE_URL.replace('/api', '')}${file.url}`,
             title: file.originalname,
             description: file.originalname
           }],
@@ -129,7 +129,7 @@ class SocialService {
           content: postData.content || '',
           images: data.success.map(file => ({
             id: file.id,
-            url: `${API_BASE_URL.replace('/api', '')}${file.url}`,
+            url: file.url.startsWith('http') ? file.url : `${API_BASE_URL.replace('/api', '')}${file.url}`,
             title: file.originalname,
             description: file.originalname
           })),

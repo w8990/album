@@ -481,40 +481,41 @@ onMounted(async () => {
 <style scoped>
 .home-container {
   min-height: 100vh;
-  background: #f5f7fa;
+  background: #fafafa;
 }
 
 .main-content {
-  max-width: 600px;
+  max-width: 560px;
   margin: 0 auto;
-  padding: 24px 20px;
+  padding: 16px;
 }
 
 /* 动态流 */
 .feed-section {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .feed-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .feed-item {
   background: white;
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid rgba(0,0,0,0.04);
 }
 
 .post-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .clickable-avatar {
@@ -527,32 +528,33 @@ onMounted(async () => {
 
 .author-name {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: 15px;
+  font-weight: 500;
+  color: #1a1a1a;
   cursor: pointer;
 }
 
 .author-name:hover {
-  color: #3b82f6;
+  color: #007aff;
 }
 
 .post-time {
-  margin: 4px 0 0 0;
+  margin: 2px 0 0 0;
   font-size: 12px;
-  color: #9ca3af;
+  color: #8e8e93;
 }
 
 .more-icon {
   cursor: pointer;
-  color: #9ca3af;
+  color: #c7c7cc;
+  font-size: 16px;
 }
 
 .post-content {
-  font-size: 16px;
-  line-height: 1.6;
-  color: #374151;
-  margin-bottom: 16px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #1a1a1a;
+  margin-bottom: 12px;
 }
 
 .post-album {
@@ -625,37 +627,41 @@ onMounted(async () => {
 }
 
 .post-actions {
-  border-top: 1px solid #f3f4f6;
-  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 12px;
+  margin-top: 8px;
 }
 
 .action-buttons {
   display: flex;
-  gap: 16px;
+  gap: 20px;
 }
 
 .action-btn {
   border: none;
   background: none;
-  color: #6b7280;
-  font-size: 14px;
+  color: #8e8e93;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
 }
 
 .action-btn:hover {
-  color: #3b82f6;
-  background: #f0f9ff;
+  color: #007aff;
+  background: rgba(0, 122, 255, 0.08);
 }
 
 .comments-section {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #f3f4f6;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
 }
 
 .comment-item {
   display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 .comment-content {
@@ -663,26 +669,27 @@ onMounted(async () => {
 }
 
 .comment-text {
-  font-size: 14px;
-  color: #374151;
+  font-size: 13px;
+  color: #1a1a1a;
+  line-height: 1.4;
 }
 
 .comment-author {
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: 500;
+  color: #1a1a1a;
 }
 
 .comment-time {
-  font-size: 12px;
-  color: #9ca3af;
-  margin-top: 4px;
+  font-size: 11px;
+  color: #8e8e93;
+  margin-top: 2px;
 }
 
 .comment-input {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .comment-field {
@@ -697,24 +704,25 @@ onMounted(async () => {
 .loading-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .feed-skeleton {
   background: white;
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  border: 1px solid rgba(0,0,0,0.04);
 }
 
 .load-more {
   text-align: center;
-  padding: 20px;
+  padding: 16px;
 }
 
 .no-more {
-  color: #9ca3af;
-  font-size: 14px;
+  color: #8e8e93;
+  font-size: 13px;
 }
 
 .photo-preview {
@@ -771,7 +779,7 @@ onMounted(async () => {
 /* 响应式设计 */
 @media (max-width: 768px) {
   .main-content {
-    padding: 16px;
+    padding: 12px;
   }
   
   .album-grid {
@@ -779,34 +787,42 @@ onMounted(async () => {
   }
   
   .preview-photo {
-    height: 250px;
+    height: 220px;
   }
   
   .action-buttons {
-    flex-wrap: wrap;
-    gap: 8px;
+    gap: 16px;
   }
 }
 
 @media (max-width: 480px) {
   .main-content {
-    padding: 12px;
+    padding: 8px;
   }
   
   .feed-item {
-    padding: 16px;
+    padding: 12px;
+    border-radius: 8px;
   }
   
   .post-header {
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }
   
   .album-header h4 {
-    font-size: 16px;
+    font-size: 15px;
   }
   
   .preview-photo {
-    height: 200px;
+    height: 180px;
+  }
+  
+  .action-buttons {
+    gap: 12px;
+  }
+  
+  .comment-item {
+    gap: 8px;
   }
 }
 </style> 

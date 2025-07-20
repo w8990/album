@@ -182,7 +182,7 @@
               >
                 <img
                   v-if="file.mimetype.startsWith('image/')"
-                  :src="file.url"
+                  :src="file.url.startsWith('http') ? file.url : `${API_BASE_URL}${file.url}`"
                   class="related-thumbnail"
                   loading="lazy"
                 >
@@ -295,7 +295,15 @@ const relatedFiles = ref<any[]>([])
 // 计算属性
 const fileUrl = computed(() => {
   if (!fileInfo.value) return ''
-  return fileInfo.value.url
+  
+  const url = fileInfo.value.url
+  // 如果已经是绝对URL，直接返回
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url
+  }
+  
+  // 如果是相对路径，拼接API_BASE_URL
+  return `${API_BASE_URL}${url}`
 })
 
 const isImage = computed(() => {

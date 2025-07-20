@@ -4,6 +4,7 @@ import path from 'path';
 import multer from 'multer';
 import { initDB, cleanExpiredSessions } from './db';
 import { uploadDir } from './middleware/upload';
+import { migrateUrlsToRelative } from './utils/migrate-urls';
 
 // 导入路由
 import authRoutes from './routes/auth';
@@ -135,6 +136,10 @@ async function startServer() {
     // 初始化数据库
     await initDB();
     console.log('✅ 数据库初始化成功');
+
+    // 迁移URL格式（一次性操作）
+    await migrateUrlsToRelative();
+    console.log('✅ URL格式迁移完成');
 
     // 启动服务器
     app.listen(port, () => {
