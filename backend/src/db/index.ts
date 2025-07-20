@@ -71,4 +71,14 @@ export {
   validateUserSession,
   deleteUserSession,
   cleanExpiredSessions
-} from './sessions'; 
+} from './sessions';
+
+// 导出密码重置功能
+export {
+  createPasswordResetToken,
+  validatePasswordResetToken,
+  usePasswordResetToken,
+  cleanExpiredPasswordResetTokens,
+  updateUserPassword,
+  generateResetToken
+} from './password-reset'; 

@@ -80,6 +80,28 @@ export const authApi = {
     const { data } = await api.put('/auth/password', passwordData)
     return data
   },
+
+  // 忘记密码
+  async forgotPassword(email: string): Promise<any> {
+    const { data } = await api.post('/auth/forgot-password', { email })
+    return data
+  },
+
+  // 重置密码
+  async resetPassword(token: string, newPassword: string): Promise<any> {
+    const { data } = await api.post('/auth/reset-password', { token, newPassword })
+    return data
+  },
 }
+
+// 导出单独的函数供组件使用
+export const login = authApi.login
+export const register = authApi.register
+export const logout = authApi.logout
+export const getCurrentUser = authApi.getCurrentUser
+export const updateProfile = authApi.updateProfile
+export const changePassword = authApi.changePassword
+export const forgotPassword = authApi.forgotPassword
+export const resetPassword = authApi.resetPassword
 
 export default api 

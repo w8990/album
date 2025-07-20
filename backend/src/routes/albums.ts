@@ -14,7 +14,7 @@ const router = express.Router();
 // 获取相册列表（需要认证）
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user!.id;
     const albums = await getAlbums(userId);
     res.json({
       success: true,
@@ -33,7 +33,7 @@ router.get('/', authenticateToken, async (req, res) => {
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const albumId = parseInt(req.params.id);
-    const userId = req.user.id;
+    const userId = req.user!.id;
     const albumInfo = await getAlbumInfo(albumId, userId);
     
     if (!albumInfo) {
@@ -60,7 +60,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
 router.get('/:id/files', authenticateToken, async (req, res) => {
   try {
     const albumIdParam = req.params.id;
-    const userId = req.user.id;
+    const userId = req.user!.id;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const sortBy = req.query.sortBy as string || 'created_at';
@@ -98,7 +98,7 @@ router.get('/:id/files', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
   try {
     const { name, description } = req.body;
-    const userId = req.user.id;
+    const userId = req.user!.id;
     
     if (!name || name.trim() === '') {
       return res.status(400).json({ 
@@ -136,7 +136,7 @@ router.post('/', authenticateToken, async (req, res) => {
 router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const albumId = parseInt(req.params.id);
-    const userId = req.user.id;
+    const userId = req.user!.id;
     const { name, description, cover_image_id } = req.body;
     
     const updateData: any = {};
@@ -177,7 +177,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const albumId = parseInt(req.params.id);
-    const userId = req.user.id;
+    const userId = req.user!.id;
     
     const success = await deleteAlbum(albumId, userId);
     

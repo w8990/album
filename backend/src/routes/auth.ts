@@ -9,7 +9,11 @@ import {
   updateLastLogin,
   createUserSession,
   deleteUserSession,
-  getUserStats
+  getUserStats,
+  createPasswordResetToken,
+  validatePasswordResetToken,
+  usePasswordResetToken,
+  updateUserPassword
 } from '../db';
 import { authenticateToken } from '../middleware/auth';
 import { generateSessionToken } from '../utils/session';
@@ -429,6 +433,119 @@ router.get('/users/:userId/stats', async (req, res) => {
     res.status(500).json({ 
       error: '获取用户统计失败',
       code: 'GET_USER_STATS_ERROR'
+    });
+  }
+});
+
+// 忘记密码 - 发送重置链接
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        error: '邮箱为必填项',
+        code: 'MISSING_EMAIL'
+      });
+    }
+
+    // 验证邮箱格式
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        error: '邮箱格式不正确',
+        code: 'INVALID_EMAIL'
+      });
+    }
+
+    // 查找用户
+    const user = await getUserByEmail(email);
+    if (!user) {
+      // 为了安全，即使用户不存在也返回成功消息
+      return res.json({
+        success: true,
+        message: '如果该邮箱已注册，您将收到密码重置邮件'
+      });
+    }
+
+    // 创建密码重置令牌
+    const resetToken = await createPasswordResetToken(user.id);
+
+    // 这里应该发送邮件，但由于没有邮件服务配置，我们暂时返回令牌用于测试
+    // 在生产环境中，应该发送包含重置链接的邮件到用户邮箱
+    console.log(`密码重置令牌 (测试用): ${resetToken}`);
+    console.log(`重置链接: http://localhost:5173/reset-password?token=${resetToken}`);
+
+    res.json({
+      success: true,
+      message: '如果该邮箱已注册，您将收到密码重置邮件',
+      // 仅在开发环境中返回令牌
+      ...(process.env.NODE_ENV === 'development' && { 
+        resetToken, 
+        resetUrl: `http://localhost:5173/reset-password?token=${resetToken}` 
+      })
+    });
+  } catch (error) {
+    console.error('发送密码重置邮件失败:', error);
+    res.status(500).json({
+      error: '发送密码重置邮件失败',
+      code: 'FORGOT_PASSWORD_ERROR'
+    });
+  }
+});
+
+// 重置密码
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        error: '重置令牌和新密码为必填项',
+        code: 'MISSING_FIELDS'
+      });
+    }
+
+    // 验证密码长度
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        error: '密码长度至少6个字符',
+        code: 'PASSWORD_TOO_SHORT'
+      });
+    }
+
+    // 验证重置令牌
+    const resetTokenData = await validatePasswordResetToken(token);
+    if (!resetTokenData) {
+      return res.status(400).json({
+        error: '重置令牌无效或已过期',
+        code: 'INVALID_TOKEN'
+      });
+    }
+
+    // 加密新密码
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+
+    // 更新用户密码
+    const success = await updateUserPassword(resetTokenData.user_id, passwordHash);
+    if (!success) {
+      return res.status(500).json({
+        error: '密码更新失败',
+        code: 'UPDATE_PASSWORD_ERROR'
+      });
+    }
+
+    // 标记令牌为已使用
+    await usePasswordResetToken(token);
+
+    res.json({
+      success: true,
+      message: '密码重置成功，请使用新密码登录'
+    });
+  } catch (error) {
+    console.error('重置密码失败:', error);
+    res.status(500).json({
+      error: '重置密码失败',
+      code: 'RESET_PASSWORD_ERROR'
     });
   }
 });

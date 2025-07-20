@@ -4,6 +4,8 @@ import Home from '../views/Home.vue'
 import Preview from '../views/Preview.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
+import ForgotPasswordView from '../views/ForgotPasswordView.vue'
+import ResetPasswordView from '../views/ResetPasswordView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -44,6 +46,26 @@ const router = createRouter({
         requiresAuth: false,
         hideForAuth: true, // 已登录用户不应该看到注册页面
         title: '用户注册'
+      }
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: ForgotPasswordView,
+      meta: { 
+        requiresAuth: false,
+        hideForAuth: true, // 已登录用户不应该看到忘记密码页面
+        title: '忘记密码'
+      }
+    },
+    {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: ResetPasswordView,
+      meta: { 
+        requiresAuth: false,
+        hideForAuth: true, // 已登录用户不应该看到重置密码页面
+        title: '重置密码'
       }
     }
   ]

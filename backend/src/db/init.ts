@@ -179,6 +179,24 @@ export async function initDB() {
         INDEX idx_locked (is_locked, locked_until)
       )
     `);
+
+    // 创建密码重置令牌表
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        is_used BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        used_at TIMESTAMP NULL,
+        INDEX idx_token (token),
+        INDEX idx_user_id (user_id),
+        INDEX idx_expires (expires_at),
+        INDEX idx_used (is_used),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
     
     // 检查并添加新字段（为了兼容现有数据）
     await checkAndAddColumns();
