@@ -12,19 +12,19 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: Home,
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: true, title: '相册首页' }
     },
     {
       path: '/preview',
       name: 'preview',
       component: Preview,
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: true, title: '相册预览' }
     },
     {
       path: '/preview/:id',
       name: 'preview-detail',
       component: Preview,
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: true, title: '文件预览' }
     },
     {
       path: '/login',

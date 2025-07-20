@@ -600,6 +600,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '../stores/user'
 import { API_BASE_URL, API_ENDPOINTS } from '../config'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -608,6 +609,7 @@ import {
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const userStore = useUserStore()
 const files = ref<any[]>([])
 const albums = ref<any[]>([])
 const showUploadDialog = ref(false)
@@ -637,6 +639,17 @@ const selectedAlbum = ref<any | null>(null)
 const selectedAlbumFilter = ref<number | null>(null)
 const selectedAlbumForMove = ref('')
 const selectedAlbumForUpload = ref('')
+
+// 获取认证头
+const getAuthHeaders = () => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  }
+  if (userStore.token) {
+    headers['Authorization'] = `Bearer ${userStore.token}`
+  }
+  return headers
+}
 
 // 计算属性
 const totalSize = computed(() => {
@@ -782,9 +795,7 @@ const createAlbum = async () => {
 
     const response = await fetch(API_ENDPOINTS.ALBUMS, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         name: newAlbumName.value.trim(),
         description: newAlbumDescription.value.trim() || undefined
@@ -824,9 +835,7 @@ const updateAlbum = async () => {
 
     const response = await fetch(API_ENDPOINTS.ALBUM(editingAlbum.value.id), {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         name: newAlbumName.value.trim(),
         description: newAlbumDescription.value.trim() || undefined
@@ -877,7 +886,8 @@ const confirmDeleteAlbum = async (album: any) => {
 const deleteAlbum = async (album: any) => {
   try {
     const response = await fetch(API_ENDPOINTS.ALBUM(album.id), {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     })
 
     if (!response.ok) {
@@ -1313,7 +1323,12 @@ const loadFiles = async (params?: {
 // 加载相册列表
 const loadAlbums = async () => {
   try {
-    const response = await fetch(API_ENDPOINTS.ALBUMS)
+    const response = await fetch(API_ENDPOINTS.ALBUMS, {
+      headers: getAuthHeaders()
+    })
+    if (!response.ok) {
+      throw new Error('获取相册列表失败')
+    }
     const data = await response.json()
     if (data.success && Array.isArray(data.data)) {
       albums.value = data.data
@@ -1324,7 +1339,14 @@ const loadAlbums = async () => {
     }
   } catch (error) {
     console.error('加载相册列表失败:', error)
-    ElMessage.error('加载相册列表失败')
+    albums.value = []
+    if (error.message.includes('401') || error.message.includes('403')) {
+      ElMessage.error('请重新登录')
+      userStore.clearAuth()
+      router.push('/login')
+    } else {
+      ElMessage.error('加载相册列表失败')
+    }
   }
 }
 

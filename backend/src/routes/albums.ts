@@ -11,10 +11,11 @@ import { authenticateToken, optionalAuth } from '../middleware/auth';
 
 const router = express.Router();
 
-// 获取相册列表（无需认证）
-router.get('/', async (req, res) => {
+// 获取相册列表（需要认证）
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const albums = await getAlbums();
+    const userId = req.user.id;
+    const albums = await getAlbums(userId);
     res.json({
       success: true,
       data: albums
@@ -28,16 +29,17 @@ router.get('/', async (req, res) => {
   }
 });
 
-// 获取单个相册信息（无需认证）
-router.get('/:id', async (req, res) => {
+// 获取单个相册信息（需要认证）
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const albumId = parseInt(req.params.id);
-    const albumInfo = await getAlbumInfo(albumId);
+    const userId = req.user.id;
+    const albumInfo = await getAlbumInfo(albumId, userId);
     
     if (!albumInfo) {
       return res.status(404).json({ 
         success: false, 
-        error: '相册不存在' 
+        error: '相册不存在或无权访问' 
       });
     }
 
@@ -54,10 +56,11 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// 获取相册中的文件（可选认证）
-router.get('/:id/files', optionalAuth, async (req, res) => {
+// 获取相册中的文件（需要认证）
+router.get('/:id/files', authenticateToken, async (req, res) => {
   try {
     const albumIdParam = req.params.id;
+    const userId = req.user.id;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const sortBy = req.query.sortBy as string || 'created_at';
@@ -74,7 +77,8 @@ router.get('/:id/files', optionalAuth, async (req, res) => {
       page,
       limit,
       sortBy,
-      sortOrder
+      sortOrder,
+      userId
     });
 
     res.json({
@@ -90,10 +94,11 @@ router.get('/:id/files', optionalAuth, async (req, res) => {
   }
 });
 
-// 创建相册（暂时无需认证，使用默认用户）
-router.post('/', optionalAuth, async (req, res) => {
+// 创建相册（需要认证）
+router.post('/', authenticateToken, async (req, res) => {
   try {
     const { name, description } = req.body;
+    const userId = req.user.id;
     
     if (!name || name.trim() === '') {
       return res.status(400).json({ 
@@ -104,7 +109,8 @@ router.post('/', optionalAuth, async (req, res) => {
 
     const result = await createAlbum({
       name: name.trim(),
-      description: description?.trim()
+      description: description?.trim(),
+      userId
     });
 
     res.json({
@@ -112,7 +118,8 @@ router.post('/', optionalAuth, async (req, res) => {
       data: {
         id: (result as any).insertId,
         name: name.trim(),
-        description: description?.trim()
+        description: description?.trim(),
+        userId
       },
       message: '相册创建成功'
     });
@@ -125,10 +132,11 @@ router.post('/', optionalAuth, async (req, res) => {
   }
 });
 
-// 更新相册信息（暂时无需认证）
-router.put('/:id', optionalAuth, async (req, res) => {
+// 更新相册信息（需要认证）
+router.put('/:id', authenticateToken, async (req, res) => {
   try {
     const albumId = parseInt(req.params.id);
+    const userId = req.user.id;
     const { name, description, cover_image_id } = req.body;
     
     const updateData: any = {};
@@ -143,12 +151,12 @@ router.put('/:id', optionalAuth, async (req, res) => {
       });
     }
 
-    const success = await updateAlbum(albumId, updateData);
+    const success = await updateAlbum(albumId, updateData, userId);
     
     if (!success) {
       return res.status(404).json({ 
         success: false, 
-        error: '相册不存在' 
+        error: '相册不存在或无权修改' 
       });
     }
 
@@ -165,17 +173,18 @@ router.put('/:id', optionalAuth, async (req, res) => {
   }
 });
 
-// 删除相册（暂时无需认证）
-router.delete('/:id', optionalAuth, async (req, res) => {
+// 删除相册（需要认证）
+router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const albumId = parseInt(req.params.id);
+    const userId = req.user.id;
     
-    const success = await deleteAlbum(albumId);
+    const success = await deleteAlbum(albumId, userId);
     
     if (!success) {
       return res.status(404).json({ 
         success: false, 
-        error: '相册不存在' 
+        error: '相册不存在或无权删除' 
       });
     }
 
