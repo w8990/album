@@ -12,10 +12,11 @@
           <el-upload
             class="upload-area"
             drag
-            action="http://localhost:3000/api/upload"
+            action="http://localhost:3000/api/files/upload"
             :on-success="handleSuccess"
             :on-error="handleError"
             :before-upload="beforeUpload"
+            name="files"
             multiple
           >
             <el-icon class="el-icon--upload"><upload-filled /></el-icon>
@@ -83,21 +84,49 @@ const formatFileSize = (size: number) => {
 }
 
 const beforeUpload = (file: File) => {
+  console.log('准备上传文件:', {
+    name: file.name,
+    type: file.type,
+    size: file.size
+  })
+  
   const isImageOrVideo = file.type.startsWith('image/') || file.type.startsWith('video/')
   if (!isImageOrVideo) {
     ElMessage.error('只能上传图片或视频文件！')
     return false
   }
+  
+  const maxSize = 100 * 1024 * 1024 // 100MB
+  if (file.size > maxSize) {
+    ElMessage.error('文件大小不能超过100MB')
+    return false
+  }
+  
   return true
 }
 
 const handleSuccess = (response: any) => {
-  fileList.value.push(response)
-  ElMessage.success('上传成功')
+  console.log('上传成功响应:', response)
+  if (response.success && response.data) {
+    fileList.value.push(...response.data)
+    ElMessage.success(response.message || '上传成功')
+  } else {
+    console.error('响应格式错误:', response)
+    ElMessage.error('上传响应格式错误')
+  }
 }
 
-const handleError = () => {
-  ElMessage.error('上传失败')
+const handleError = (error: any) => {
+  console.error('上传错误详情:', error)
+  let errorMessage = '上传失败'
+  
+  if (error?.response?.data?.error) {
+    errorMessage = error.response.data.error
+  } else if (error?.message) {
+    errorMessage = error.message
+  }
+  
+  ElMessage.error(errorMessage)
 }
 
 const previewFile = (file: any) => {

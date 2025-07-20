@@ -1,5 +1,6 @@
 import express from 'express';
 import { 
+  insertFileInfo,
   insertFileInfoWithUser, 
   getFileList, 
   searchFiles, 
@@ -139,10 +140,17 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// 上传文件（暂时无需认证，使用默认用户）
-router.post('/upload', optionalAuth, upload.array('files', 10), async (req, res) => {
+// 上传文件（需要认证）
+router.post('/upload', authenticateToken, upload.array('files', 10), async (req, res) => {
   try {
+    console.log('收到上传请求:', {
+      files: req.files ? req.files.length : 0,
+      body: req.body,
+      user: req.user
+    });
+
     if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+      console.log('没有文件上传');
       return res.status(400).json({ 
         success: false, 
         error: '没有上传文件' 
@@ -151,9 +159,20 @@ router.post('/upload', optionalAuth, upload.array('files', 10), async (req, res)
 
     const uploadedFiles = [];
     const albumId = req.body.albumId ? parseInt(req.body.albumId) : undefined;
-    const userId = req.user?.id || 1; // 如果没有登录用户，使用默认用户ID 1
+    
+    // 确保用户已登录
+    const userId = req.user!.id;
+
+    console.log('处理文件上传:', { albumId, userId, fileCount: req.files.length });
 
     for (const file of req.files) {
+      console.log('处理文件:', {
+        filename: file.filename,
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size
+      });
+
       const fileInfo = {
         filename: file.filename,
         originalname: file.originalname,
@@ -161,30 +180,30 @@ router.post('/upload', optionalAuth, upload.array('files', 10), async (req, res)
         size: file.size,
         url: `http://localhost:3000/uploads/${file.filename}`,
         album_id: albumId,
-        user_id: userId,
-        caption: req.body.caption,
-        tags: req.body.tags ? JSON.parse(req.body.tags) : undefined,
-        location: req.body.location,
-        privacy_level: req.body.privacy_level || 'public'
+        user_id: userId
       };
 
-      const result = await insertFileInfoWithUser(fileInfo);
+      console.log('准备插入数据库:', fileInfo);
+      const result = await insertFileInfo(fileInfo);
+      console.log('数据库插入结果:', result);
+      
       uploadedFiles.push({
         id: (result as any).insertId,
         ...fileInfo
       });
     }
 
+    console.log('上传成功:', uploadedFiles.length);
     res.json({
       success: true,
       data: uploadedFiles,
       message: `成功上传 ${uploadedFiles.length} 个文件`
     });
   } catch (error) {
-    console.error('上传文件失败:', error);
+    console.error('上传文件失败详细错误:', error);
     res.status(500).json({ 
       success: false, 
-      error: '上传文件失败' 
+      error: '上传文件失败: ' + (error instanceof Error ? error.message : String(error))
     });
   }
 });

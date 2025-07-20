@@ -422,20 +422,38 @@ export async function getFileListWithSocial(options?: {
     const validSortOrder = ['ASC', 'DESC'].includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
 
     let whereClause = '';
-    let queryParams: any[] = [];
+    let countQueryParams: any[] = [];
+    let mainQueryParams: any[] = [];
 
-    // 处理相册筛选
+    // 处理相册筛选和用户权限
+    let conditions = [];
+    
     if (albumId === 'default') {
-      whereClause = 'WHERE f.album_id IS NULL';
+      conditions.push('f.album_id IS NULL');
     } else if (albumId !== undefined && albumId !== null) {
-      whereClause = 'WHERE f.album_id = ?';
-      queryParams.push(albumId);
+      conditions.push('f.album_id = ?');
+      countQueryParams.push(albumId);
+      mainQueryParams.push(albumId);
     }
+    
+    // 添加用户权限过滤：每个用户只能看到自己的文件
+    if (userId) {
+      conditions.push('f.user_id = ?');
+      countQueryParams.push(userId);
+      mainQueryParams.push(userId);
+    } else {
+      // 未登录用户暂时不能看到任何文件（或者可以看到默认用户的文件）
+      conditions.push('f.user_id = 1'); // 只显示默认用户的文件
+      countQueryParams.push(1);
+      mainQueryParams.push(1);
+    }
+    
+    whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
     // 获取总数
     const [countResult] = await pool.query(
       `SELECT COUNT(*) as total FROM ${TABLE_NAME} f ${whereClause}`,
-      queryParams
+      countQueryParams
     );
     const total = (countResult as any[])[0].total;
 
@@ -473,7 +491,7 @@ export async function getFileListWithSocial(options?: {
       LIMIT ? OFFSET ?
     `, [
       ...(userId ? [userId, userId] : []),
-      ...queryParams, 
+      ...mainQueryParams, 
       limit, 
       offset
     ]);

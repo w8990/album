@@ -90,7 +90,7 @@
             
             <!-- 文件数量标签 -->
             <div class="file-count-badge">
-              {{ album.file_count }} 个文件
+              {{ album.file_count || 0 }} 个文件
             </div>
           </div>
 
@@ -99,7 +99,7 @@
             <h3 class="album-name" :title="album.name">{{ album.name }}</h3>
             <p class="album-description" v-if="album.description">{{ album.description }}</p>
             <div class="album-meta">
-              <span class="album-size">{{ formatFileSize(album.total_size) }}</span>
+              <span class="album-size">{{ formatFileSize(parseInt(album.total_size) || 0) }}</span>
               <span class="album-date">{{ formatDate(album.created_at) }}</span>
             </div>
           </div>
@@ -107,7 +107,7 @@
           <!-- 相册操作 -->
           <div class="album-actions">
             <el-dropdown @command="handleAlbumAction" trigger="click">
-              <el-button type="text" size="small">
+              <el-button type="link" size="small">
                 <el-icon><MoreFilled /></el-icon>
               </el-button>
               <template #dropdown>
@@ -249,7 +249,7 @@
                 <div class="preview-container">
                   <img
                     v-if="file.mimetype.startsWith('image/')"
-                    :src="`${API_BASE_URL}${file.url}`"
+                    :src="file.url"
                     :alt="file.originalname"
                     class="preview-image"
                     loading="lazy"
@@ -312,7 +312,7 @@
                 <div class="table-preview">
                   <img
                     v-if="row.mimetype.startsWith('image/')"
-                    :src="`${API_BASE_URL}${row.url}`"
+                    :src="row.url"
                     class="table-preview-img"
                     loading="lazy"
                   >
@@ -662,8 +662,8 @@ const isAllSelected = computed(() => {
 })
 
 // 工具函数
-const formatFileSize = (bytes: number) => {
-  if (bytes === 0) return '0 B'
+const formatFileSize = (bytes: number | undefined | null) => {
+  if (!bytes || bytes === 0 || isNaN(bytes)) return '0 B'
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
@@ -709,7 +709,9 @@ const handleSearch = async () => {
       }
       
       const url = `${API_ENDPOINTS.FILES}/search?${queryParams.toString()}`;
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       
       if (data.success && data.data && Array.isArray(data.data)) {
@@ -986,7 +988,7 @@ const previewFile = (file: any) => {
 
 const downloadFile = (file: any) => {
   const link = document.createElement('a')
-  link.href = `${API_BASE_URL}${file.url}`
+  link.href = file.url
   link.download = file.originalname
   document.body.appendChild(link)
   link.click()
@@ -1167,6 +1169,9 @@ const startUpload = async () => {
     try {
       const response = await fetch(API_ENDPOINTS.UPLOAD, {
         method: 'POST',
+        headers: {
+          ...(userStore.token && { 'Authorization': `Bearer ${userStore.token}` })
+        },
         body: formData
       })
       
@@ -1303,7 +1308,9 @@ const loadFiles = async (params?: {
     }
     
     const url = `${API_ENDPOINTS.FILES}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      headers: getAuthHeaders()
+    });
     const data = await response.json();
     
     // 处理分页数据结构

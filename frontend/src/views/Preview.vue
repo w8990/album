@@ -182,7 +182,7 @@
               >
                 <img
                   v-if="file.mimetype.startsWith('image/')"
-                  :src="`${API_BASE_URL}${file.url}`"
+                  :src="file.url"
                   class="related-thumbnail"
                   loading="lazy"
                 >
@@ -295,7 +295,7 @@ const relatedFiles = ref<any[]>([])
 // 计算属性
 const fileUrl = computed(() => {
   if (!fileInfo.value) return ''
-  return `${API_BASE_URL}${fileInfo.value.url}`
+  return fileInfo.value.url
 })
 
 const isImage = computed(() => {

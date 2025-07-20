@@ -11,11 +11,12 @@ export async function insertFileInfo(file: {
   size: number;
   url: string;
   album_id?: number;
+  user_id?: number;
 }) {
   try {
     const [result] = await pool.query(
-      `INSERT INTO ${TABLE_NAME} (filename, originalname, mimetype, size, url, album_id) VALUES (?, ?, ?, ?, ?, ?)`,
-      [file.filename, file.originalname, file.mimetype, file.size, file.url, file.album_id || null]
+      `INSERT INTO ${TABLE_NAME} (filename, originalname, mimetype, size, url, album_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [file.filename, file.originalname, file.mimetype, file.size, file.url, file.album_id || null, file.user_id || 1]
     );
     return result;
   } catch (error) {
