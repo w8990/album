@@ -79,6 +79,20 @@ export async function getUserById(id: number) {
   }
 }
 
+// 根据ID获取用户（包含密码哈希，用于密码验证）
+export async function getUserWithPasswordById(id: number) {
+  try {
+    const [rows] = await pool.query(
+      'SELECT id, username, email, display_name, avatar_url, bio, location, website, password_hash, created_at, updated_at, last_login_at FROM users WHERE id = ? AND is_active = TRUE',
+      [id]
+    );
+    return (rows as any[])[0];
+  } catch (error) {
+    console.error('根据ID获取用户（含密码）失败:', error);
+    throw error;
+  }
+}
+
 // 更新用户信息
 export async function updateUser(id: number, updates: {
   email?: string;
@@ -277,55 +291,63 @@ export async function getUserFollowers(userId: number, options?: {
 // 获取用户统计信息
 export async function getUserStats(userId: number) {
   try {
-    // 发布的文件数量
-    const [postsResult] = await pool.query(
+    // 相册数量
+    const [albumsResult] = await pool.query(
+      'SELECT COUNT(*) as count FROM albums WHERE user_id = ?',
+      [userId]
+    );
+    const albums_count = (albumsResult as any[])[0].count;
+
+    // 文件数量
+    const [filesResult] = await pool.query(
       'SELECT COUNT(*) as count FROM files WHERE user_id = ?',
       [userId]
     );
-    const posts = (postsResult as any[])[0].count;
+    const files_count = (filesResult as any[])[0].count;
 
     // 关注数量
     const [followingResult] = await pool.query(
       'SELECT COUNT(*) as count FROM follows WHERE follower_id = ?',
       [userId]
     );
-    const following = (followingResult as any[])[0].count;
+    const following_count = (followingResult as any[])[0].count;
 
     // 粉丝数量
     const [followersResult] = await pool.query(
       'SELECT COUNT(*) as count FROM follows WHERE following_id = ?',
       [userId]
     );
-    const followers = (followersResult as any[])[0].count;
+    const followers_count = (followersResult as any[])[0].count;
 
     // 获得的点赞数
     const [likesResult] = await pool.query(
       'SELECT COUNT(*) as count FROM likes l JOIN files f ON l.file_id = f.id WHERE f.user_id = ?',
       [userId]
     );
-    const likes = (likesResult as any[])[0].count;
+    const likes_count = (likesResult as any[])[0].count;
 
     // 收藏数量
     const [favoritesResult] = await pool.query(
       'SELECT COUNT(*) as count FROM favorites WHERE user_id = ?',
       [userId]
     );
-    const favorites = (favoritesResult as any[])[0].count;
+    const favorites_count = (favoritesResult as any[])[0].count;
 
     // 总浏览量
     const [viewsResult] = await pool.query(
       'SELECT SUM(views) as totalViews FROM files WHERE user_id = ?',
       [userId]
     );
-    const views = (viewsResult as any[])[0].totalViews || 0;
+    const total_views = (viewsResult as any[])[0].totalViews || 0;
 
     return {
-      posts,
-      following,
-      followers,
-      likes,
-      favorites,
-      views
+      albums_count,
+      files_count,
+      following_count,
+      followers_count,
+      likes_count,
+      favorites_count,
+      total_views
     };
   } catch (error) {
     console.error('获取用户统计失败:', error);

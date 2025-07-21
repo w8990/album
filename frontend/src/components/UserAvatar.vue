@@ -17,7 +17,7 @@
         <div class="user-info">
           <el-avatar 
             :size="36" 
-            :src="userStore.user?.avatar_url" 
+            :src="getAvatarUrl(userStore.user?.avatar_url)" 
             class="user-avatar"
           >
             <el-icon><User /></el-icon>
@@ -53,13 +53,33 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { watch } from 'vue'
 import { 
   User, ArrowDown, Setting, Picture, SwitchButton 
 } from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/user'
+import { API_CONFIG } from '../config/api'
 
 const router = useRouter()
 const userStore = useUserStore()
+
+// 获取头像URL
+const getAvatarUrl = (avatarUrl?: string) => {
+  if (!avatarUrl) return undefined
+  
+  // 如果已经是完整URL，直接返回
+  if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+    return avatarUrl
+  }
+  
+  // 如果是相对路径，拼接API base URL
+  return `${API_CONFIG.BASE_URL}${avatarUrl}`
+}
+
+// 监听用户信息变化，用于调试
+watch(() => userStore.user?.avatar_url, (newAvatarUrl) => {
+  console.log('UserAvatar组件监听到头像变化:', newAvatarUrl)
+}, { immediate: true })
 
 // 跳转到登录页面
 const goToLogin = () => {
@@ -75,8 +95,7 @@ const goToRegister = () => {
 const handleCommand = async (command: string) => {
   switch (command) {
     case 'profile':
-      // TODO: 跳转到个人资料页面
-      ElMessage.info('个人资料功能正在开发中')
+      router.push('/profile')
       break
     case 'settings':
       // TODO: 跳转到设置页面

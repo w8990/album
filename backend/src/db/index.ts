@@ -35,6 +35,7 @@ export {
   getUserByUsername,
   getUserByEmail,
   getUserById,
+  getUserWithPasswordById,
   updateUser,
   updateLastLogin,
   followUser,

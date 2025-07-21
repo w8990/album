@@ -68,7 +68,7 @@ export const authApi = {
 
   // 更新用户信息
   async updateProfile(profileData: any): Promise<any> {
-    const { data } = await api.put('/auth/profile', profileData)
+    const { data } = await api.put('/auth/me', profileData)
     return data
   },
 

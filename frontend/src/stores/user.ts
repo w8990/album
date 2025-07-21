@@ -169,6 +169,20 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  // 更新用户信息
+  const updateUser = (userData: User) => {
+    console.log('更新用户信息:', userData)
+    user.value = userData
+    
+    // 更新存储的用户信息（保持原有的存储方式）
+    const currentToken = getStoredToken()
+    if (localStorage.getItem('token') === currentToken) {
+      localStorage.setItem('user', JSON.stringify(userData))
+    } else if (sessionStorage.getItem('token') === currentToken) {
+      sessionStorage.setItem('user', JSON.stringify(userData))
+    }
+  }
+
   return {
     // 状态
     user,
@@ -185,6 +199,7 @@ export const useUserStore = defineStore('user', () => {
     login,
     register,
     logout,
-    getCurrentUser
+    getCurrentUser,
+    updateUser
   }
 }) 

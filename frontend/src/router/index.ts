@@ -6,6 +6,7 @@ import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import ForgotPasswordView from '../views/ForgotPasswordView.vue'
 import ResetPasswordView from '../views/ResetPasswordView.vue'
+import ProfileView from '../views/ProfileView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -67,6 +68,12 @@ const router = createRouter({
         hideForAuth: true, // 已登录用户不应该看到重置密码页面
         title: '重置密码'
       }
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: ProfileView,
+      meta: { requiresAuth: true, title: '个人资料' }
     }
   ]
 })

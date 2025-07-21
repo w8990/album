@@ -4,7 +4,8 @@ import {
   createUser, 
   getUserByUsername, 
   getUserByEmail, 
-  getUserById, 
+  getUserById,
+  getUserWithPasswordById,
   updateUser, 
   updateLastLogin,
   createUserSession,
@@ -546,6 +547,92 @@ router.post('/reset-password', async (req, res) => {
     res.status(500).json({
       error: '重置密码失败',
       code: 'RESET_PASSWORD_ERROR'
+    });
+  }
+});
+
+// 修改密码
+router.put('/password', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user!.id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        error: '当前密码和新密码为必填项',
+        code: 'MISSING_FIELDS'
+      });
+    }
+
+    // 验证新密码长度
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        error: '新密码长度至少6个字符',
+        code: 'PASSWORD_TOO_SHORT'
+      });
+    }
+
+    // 获取用户信息（包含密码哈希）
+    const user = await getUserWithPasswordById(userId);
+    if (!user) {
+      console.error('用户不存在:', userId);
+      return res.status(404).json({
+        error: '用户不存在',
+        code: 'USER_NOT_FOUND'
+      });
+    }
+    
+    console.log('找到用户，准备验证密码:', user.username);
+
+    // 验证当前密码
+    console.log('验证当前密码...');
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isCurrentPasswordValid) {
+      console.log('当前密码验证失败');
+      return res.status(400).json({
+        error: '当前密码不正确',
+        code: 'INVALID_CURRENT_PASSWORD'
+      });
+    }
+    
+    console.log('当前密码验证成功');
+
+    // 检查新密码是否与当前密码相同
+    const isSamePassword = await bcrypt.compare(newPassword, user.password_hash);
+    if (isSamePassword) {
+      return res.status(400).json({
+        error: '新密码不能与当前密码相同',
+        code: 'SAME_PASSWORD'
+      });
+    }
+
+    // 加密新密码
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+    // 更新密码
+    console.log('准备更新密码到数据库...');
+    const success = await updateUserPassword(userId, newPasswordHash);
+    console.log('密码更新结果:', success);
+    
+    if (!success) {
+      console.error('密码更新失败');
+      return res.status(500).json({
+        error: '密码更新失败',
+        code: 'UPDATE_PASSWORD_ERROR'
+      });
+    }
+    
+    console.log('密码更新成功');
+
+    res.json({
+      success: true,
+      message: '密码修改成功'
+    });
+  } catch (error) {
+    console.error('修改密码失败:', error);
+    res.status(500).json({
+      error: '修改密码失败',
+      code: 'CHANGE_PASSWORD_ERROR'
     });
   }
 });

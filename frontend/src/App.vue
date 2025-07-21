@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Picture, House, View } from '@element-plus/icons-vue'
+import { Picture, House, View, User } from '@element-plus/icons-vue'
 import UserAvatar from './components/UserAvatar.vue'
 </script>
 
@@ -23,6 +23,10 @@ import UserAvatar from './components/UserAvatar.vue'
           <router-link to="/preview" class="nav-link">
             <el-icon><View /></el-icon>
             预览
+          </router-link>
+          <router-link to="/profile" class="nav-link">
+            <el-icon><User /></el-icon>
+            个人资料
           </router-link>
         </nav>
 
