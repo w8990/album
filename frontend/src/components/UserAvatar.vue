@@ -98,8 +98,7 @@ const handleCommand = async (command: string) => {
       router.push('/profile')
       break
     case 'settings':
-      // TODO: 跳转到设置页面
-      ElMessage.info('设置功能正在开发中')
+      router.push('/settings')
       break
     case 'albums':
       // TODO: 跳转到我的相册页面

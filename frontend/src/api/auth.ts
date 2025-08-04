@@ -92,6 +92,16 @@ export const authApi = {
     const { data } = await api.post('/auth/reset-password', { token, newPassword })
     return data
   },
+
+  // 上传头像
+  async uploadAvatar(formData: FormData): Promise<any> {
+    const { data } = await api.post('/auth/upload-avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    return data
+  },
 }
 
 // 导出单独的函数供组件使用
@@ -99,9 +109,10 @@ export const login = authApi.login
 export const register = authApi.register
 export const logout = authApi.logout
 export const getCurrentUser = authApi.getCurrentUser
-export const updateProfile = authApi.updateProfile
+export const updateUserProfile = authApi.updateProfile
 export const changePassword = authApi.changePassword
 export const forgotPassword = authApi.forgotPassword
 export const resetPassword = authApi.resetPassword
+export const uploadUserAvatar = authApi.uploadAvatar
 
 export default api 

@@ -118,48 +118,6 @@
           </div>
         </el-tab-pane>
 
-        <el-tab-pane label="修改密码" name="password">
-          <div class="change-password-form">
-            <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef" label-width="100px">
-              <el-form-item label="当前密码" prop="currentPassword">
-                <el-input
-                  v-model="passwordForm.currentPassword"
-                  type="password"
-                  placeholder="请输入当前密码"
-                  show-password
-                />
-              </el-form-item>
-              
-              <el-form-item label="新密码" prop="newPassword">
-                <el-input
-                  v-model="passwordForm.newPassword"
-                  type="password"
-                  placeholder="请输入新密码"
-                  show-password
-                />
-                <div class="password-hint">
-                  密码要求：6-50个字符，必须包含字母和数字
-                </div>
-              </el-form-item>
-              
-              <el-form-item label="确认密码" prop="confirmPassword">
-                <el-input
-                  v-model="passwordForm.confirmPassword"
-                  type="password"
-                  placeholder="请再次输入新密码"
-                  show-password
-                />
-              </el-form-item>
-              
-              <el-form-item>
-                <el-button type="primary" @click="changePassword" :loading="changingPassword">
-                  {{ changingPassword ? '修改中...' : '修改密码' }}
-                </el-button>
-                <el-button @click="resetPasswordForm" :disabled="changingPassword">重置</el-button>
-              </el-form-item>
-            </el-form>
-          </div>
-        </el-tab-pane>
       </el-tabs>
     </div>
   </div>
@@ -181,11 +139,9 @@ const activeTab = ref('edit')
 const userInfo = ref<User | null>(null)
 const stats = ref<UserStats | null>(null)
 const updating = ref(false)
-const changingPassword = ref(false)
 const avatarUploading = ref(false)
 
 const editFormRef = ref<FormInstance>()
-const passwordFormRef = ref<FormInstance>()
 
 const editForm = reactive({
   display_name: '',
@@ -195,11 +151,6 @@ const editForm = reactive({
   website: ''
 })
 
-const passwordForm = reactive({
-  currentPassword: '',
-  newPassword: '',
-  confirmPassword: ''
-})
 
 const editRules = {
   display_name: [
@@ -236,46 +187,6 @@ const editRules = {
   ]
 }
 
-const passwordRules = {
-  currentPassword: [
-    { required: true, message: '请输入当前密码', trigger: 'blur' }
-  ],
-  newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '密码长度至少6个字符', trigger: 'blur' },
-    { max: 50, message: '密码长度不能超过50个字符', trigger: 'blur' },
-    {
-      validator: (rule: any, value: string, callback: Function) => {
-        if (!value) {
-          callback()
-          return
-        }
-        // 检查密码复杂度：至少包含字母和数字
-        const hasLetter = /[a-zA-Z]/.test(value)
-        const hasNumber = /\d/.test(value)
-        if (!hasLetter || !hasNumber) {
-          callback(new Error('密码必须包含字母和数字'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur'
-    }
-  ],
-  confirmPassword: [
-    { required: true, message: '请再次输入新密码', trigger: 'blur' },
-    {
-      validator: (rule: any, value: string, callback: Function) => {
-        if (value !== passwordForm.newPassword) {
-          callback(new Error('两次输入的密码不一致'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur'
-    }
-  ]
-}
 
 const formatDate = (dateString?: string) => {
   if (!dateString) return ''
@@ -384,87 +295,6 @@ const resetForm = () => {
   }
 }
 
-const changePassword = async () => {
-  if (!passwordFormRef.value) return
-  
-  try {
-    const valid = await passwordFormRef.value.validate()
-    if (!valid) return
-    
-    changingPassword.value = true
-    console.log('提交密码修改请求...')
-    
-    const response = await authApi.changePassword({
-      currentPassword: passwordForm.currentPassword,
-      newPassword: passwordForm.newPassword
-    })
-    
-    console.log('密码修改响应:', response)
-    
-    if (response.success) {
-      ElMessage({
-        message: '密码修改成功，建议重新登录以确保安全',
-        type: 'success',
-        duration: 4000,
-        showClose: true
-      })
-      resetPasswordForm()
-      
-      // 建议用户重新登录
-      setTimeout(() => {
-        ElMessageBox.confirm(
-          '密码已修改成功，建议重新登录以确保账户安全。是否现在重新登录？',
-          '密码修改成功',
-          {
-            confirmButtonText: '重新登录',
-            cancelButtonText: '稍后登录',
-            type: 'warning'
-          }
-        ).then(() => {
-          // 用户选择重新登录
-          userStore.logout().then(() => {
-            window.location.href = '/login'
-          })
-        }).catch(() => {
-          // 用户选择稍后登录，什么都不做
-        })
-      }, 1500)
-    } else {
-      ElMessage.error(response.error || '修改密码失败')
-    }
-  } catch (error: any) {
-    console.error('修改密码失败:', error)
-    
-    // 解析具体的错误信息
-    let errorMsg = '修改密码失败'
-    if (error.response?.data?.error) {
-      errorMsg = error.response.data.error
-    } else if (error.response?.status === 500) {
-      errorMsg = '服务器内部错误，请稍后重试'
-    } else if (error.message) {
-      errorMsg = error.message
-    }
-    
-    ElMessage.error(errorMsg)
-  } finally {
-    changingPassword.value = false
-  }
-}
-
-const resetPasswordForm = () => {
-  Object.assign(passwordForm, {
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: ''
-  })
-  passwordFormRef.value?.clearValidate()
-  
-  ElMessage({
-    message: '密码表单已重置',
-    type: 'info',
-    duration: 2000
-  })
-}
 
 const beforeAvatarUpload: UploadProps['beforeUpload'] = (file) => {
   const isImage = file.type.startsWith('image/')
@@ -686,17 +516,9 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.edit-profile-form,
-.change-password-form {
+.edit-profile-form {
   padding: 30px;
   max-width: 600px;
-}
-
-.password-hint {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 5px;
-  line-height: 1.4;
 }
 
 :deep(.el-tabs__header) {
@@ -724,8 +546,7 @@ onMounted(() => {
     justify-content: center;
   }
   
-  .edit-profile-form,
-  .change-password-form {
+  .edit-profile-form {
     padding: 20px;
   }
 }
